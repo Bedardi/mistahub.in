@@ -5,13 +5,19 @@ import urllib.parse
 import random
 import time
 import re
-import edge_tts
 import datetime
 import glob
+import textwrap
+import edge_tts
 from concurrent.futures import ThreadPoolExecutor
-from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips, CompositeVideoClip, TextClip, CompositeAudioClip
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
+import numpy as np
 
+# Compatible with MoviePy 1.0.3
+from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips, CompositeVideoClip, CompositeAudioClip
+import moviepy.audio.fx.all as afx
+
+# YouTube API imports
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
@@ -35,78 +41,41 @@ def download_hindi_font():
     font_path = "HindiFont.ttf"
     if not os.path.exists(font_path):
         url = "https://github.com/googlefonts/noto-fonts/raw/main/unhinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Bold.ttf"
-        res = requests.get(url, headers=get_fake_headers())
-        with open(font_path, 'wb') as f: f.write(res.content)
+        try:
+            res = requests.get(url, headers=get_fake_headers(), timeout=15)
+            with open(font_path, 'wb') as f: f.write(res.content)
+        except Exception as e:
+            print(f"Font download failed: {e}")
     return font_path
 
 def get_daily_shayri_topic():
-    print("🔍 Fetching a FRESH Shayri Theme from AI...")
+    print("🔍 Fetching a FRESH Shayri Theme...")
     prompt = f"Give me ONLY ONE unique and deep Hindi Shayri theme or emotion (like unspoken love, deep motivation, betrayal, beautiful life, rain nostalgia, moving on) for {CURRENT_YEAR}. Keep it under 4 words. No quotes."
     safe_prompt = urllib.parse.quote(prompt)
     
-    max_retries = 5
-    for _ in range(max_retries):
+    for _ in range(3):
         try:
-            res = requests.get(f"https://text.pollinations.ai/prompt/{safe_prompt}?seed={random.randint(1,99999)}", headers=get_fake_headers(), timeout=15)
+            res = requests.get(f"https://text.pollinations.ai/prompt/{safe_prompt}?seed={random.randint(1,99999)}", headers=get_fake_headers(), timeout=10)
             fresh_topic = res.text.strip().replace('"', '').replace("'", "")
-            if 3 < len(fresh_topic) < 40:
-                return fresh_topic
-        except Exception:
-            time.sleep(2)
+            if 3 < len(fresh_topic) < 40: return fresh_topic
+        except: time.sleep(2)
             
     return f"Deep feelings of {datetime.datetime.now().strftime('%A')}"
 
-# 🎵 NEW UPGRADE: 100% Dynamic Online BGM Downloader (No Hardcoded Local Folder)
-def download_dynamic_bgm(theme):
-    print(f"🎵 Analyzing theme '{theme}' to fetch matching Copyright-Free BGM online...")
-    
-    # AI se mood and genre pucha ja raha hai theme ke according
-    prompt = f"Based on the poetry theme '{theme}', suggest the single best background music mood keyword from these options: [sad, romantic, motivational, peaceful]. Output ONLY the lowercase keyword, nothing else."
-    safe_prompt = urllib.parse.quote(prompt)
-    
-    mood = "sad" # Default dynamic fallback
-    try:
-        res = requests.get(f"https://text.pollinations.ai/prompt/{safe_prompt}?seed={random.randint(1,99999)}", headers=get_fake_headers(), timeout=15)
-        detected_mood = res.text.strip().lower()
-        if detected_mood in ["sad", "romantic", "motivational", "peaceful"]:
-            mood = detected_mood
-    except:
-        pass
-
-    print(f"🎼 Selected Music Mood: {mood.upper()}")
-    
-    # High-quality Creative Commons Direct MP3 Links from trusted open archives (Kevin MacLeod / Incompetech & FreeMusicArchive)
-    # Yeh internet se direct stream/download honge, local folder ki koi need nahi hai.
-    music_sources = {
-        "sad": [
-            "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", # Dynamic stream fallbacks
-            "https://ccmixter.org/content/Uncontained/Uncontained_-_The_Art_Of_Silence_1.mp3"
-        ],
-        "romantic": [
-            "https://ccmixter.org/content/cdk/cdk_-_Like_Me_Dislike_Me.mp3",
-            "https://ccmixter.org/content/airtone/airtone_-_revisions.mp3"
-        ],
-        "motivational": [
-            "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-            "https://ccmixter.org/content/scotttobias/scotttobias_-_Trance_State.mp3"
-        ],
-        "peaceful": [
-            "https://ccmixter.org/content/airtone/airtone_-_nightWalk.mp3",
-            "https://ccmixter.org/content/airtone/airtone_-_allway.mp3"
-        ]
-    }
-    
-    selected_url = random.choice(music_sources[mood])
+def download_dynamic_bgm():
+    print(f"🎵 Fetching dynamic CC BGM...")
+    music_sources = [
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3"
+    ]
     bgm_filename = "temp_online_bgm.mp3"
-    
     try:
-        print(f"📥 Downloading copyright-free track dynamically...")
-        res = requests.get(selected_url, headers=get_fake_headers(), timeout=30)
-        with open(bgm_filename, 'wb') as f:
-            f.write(res.content)
+        res = requests.get(random.choice(music_sources), headers=get_fake_headers(), timeout=30)
+        with open(bgm_filename, 'wb') as f: f.write(res.content)
         return bgm_filename
     except Exception as e:
-        print(f"⚠️ Music download failed: {e}. Running video without BGM to ensure no crash.")
+        print(f"⚠️ Music download failed: {e}")
         return None
 
 def clean_ai_text(text):
@@ -125,74 +94,100 @@ def apply_random_motion(clip, duration):
     else: return clip.set_position(lambda t: ('center', -288 + (288 * (t/duration))))
 
 def generate_youtube_metadata(topic):
-    print("📝 Generating SEO Title, Description & Tags for @mistahub...")
+    print("📝 Generating SEO Metadata...")
     prompt = f"Write highly engaging YouTube Shorts metadata for a Hindi Shayri about: '{topic}'. Mention @mistahub in description. Format exactly like this:\nTITLE: Catchy Title #shorts\nDESCRIPTION: Short description.\nTAGS: tag1, tag2"
     safe_prompt = urllib.parse.quote(prompt)
     try:
-        res = requests.get(f"https://text.pollinations.ai/prompt/{safe_prompt}?seed={random.randint(1,99999)}", headers=get_fake_headers(), timeout=20)
+        res = requests.get(f"https://text.pollinations.ai/prompt/{safe_prompt}?seed={random.randint(1,99999)}", headers=get_fake_headers(), timeout=15)
         text = res.text
-        title = text.split("TITLE:")[1].split("DESCRIPTION:")[0].strip() if "TITLE:" in text else f"Heart touching Shayri on {topic} 💔 #shayri #shorts"
-        desc = text.split("DESCRIPTION:")[1].split("TAGS:")[0].strip() if "DESCRIPTION:" in text else f"Deep words about {topic}. Subscribe to @mistahub for daily soul-touching poetry."
-        tags_str = text.split("TAGS:")[1].strip() if "TAGS:" in text else "shayri, shorts, hindi, poetry, mistahub, status"
+        title = text.split("TITLE:")[1].split("DESCRIPTION:")[0].strip() if "TITLE:" in text else f"Beautiful Shayri: {topic} ✨ #shayri #shorts"
+        desc = text.split("DESCRIPTION:")[1].split("TAGS:")[0].strip() if "DESCRIPTION:" in text else f"Deep words. Subscribe to @mistahub for more."
+        tags_str = text.split("TAGS:")[1].strip() if "TAGS:" in text else "shayri, shorts, hindi, poetry, mistahub"
         tags = [t.strip() for t in tags_str.split(',')][:15]
-        
         for t in ["shayri", "shorts", "mistahub"]:
             if t not in [tag.lower() for tag in tags]: tags.append(t)
-            
         return title, desc, tags[:15]
     except:
-        date_str = datetime.datetime.now().strftime("%d %b")
-        return f"Beautiful Shayri on {topic} ✨ | @mistahub #shorts", f"Daily Shayri Drop ({date_str}). Follow @mistahub for more emotional poetry.", ["shayri", "shorts", "mistahub", "poetry", "hindi"]
+        return f"Emotional Shayri: {topic} 💔 | @mistahub #shorts", f"Follow @mistahub for daily Hindi poetry.", ["shayri", "shorts", "mistahub", "poetry", "hindi"]
 
 def upload_video_to_youtube(video_path, title, description, tags):
-    print("\n🚀 Uploading @mistahub Shayri to YouTube...")
+    print("\n🚀 Uploading to YouTube @mistahub...")
     client_id = os.environ.get("CLIENT_ID")
     client_secret = os.environ.get("CLIENT_SECRET")
     refresh_token = os.environ.get("REFRESH_TOKEN")
 
     if not all([client_id, client_secret, refresh_token]):
-        print("❌ YouTube Credentials missing! (Set as GitHub Secrets for fully auto manager mode)")
+        print("❌ YouTube Credentials missing! Make sure secrets are loaded in GitHub Actions.")
         return
 
     creds = Credentials(None, refresh_token=refresh_token, token_uri="https://oauth2.googleapis.com/token", client_id=client_id, client_secret=client_secret)
     youtube = build("youtube", "v3", credentials=creds)
 
     body = {
-        "snippet": {
-            "title": title[:100],
-            "description": description[:5000],
-            "tags": tags,
-            "categoryId": "24",
-            "defaultLanguage": "hi"
-        },
-        "status": {
-            "privacyStatus": "public",
-            "selfDeclaredMadeForKids": False
-        }
+        "snippet": {"title": title[:100], "description": description[:5000], "tags": tags, "categoryId": "24", "defaultLanguage": "hi"},
+        "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": False}
     }
 
     try:
         req = youtube.videos().insert(part="snippet,status", body=body, media_body=MediaFileUpload(video_path, chunksize=-1, resumable=True))
         response = req.execute()
-        print(f"🎉 SHAYRI UPLOADED SUCCESSFULLY! Link: https://youtube.com/shorts/{response['id']}")
+        print(f"🎉 SUCCESS! Video Live at: https://youtube.com/shorts/{response['id']}")
     except Exception as e:
         print(f"❌ Upload Failed: {e}")
 
-def process_scene_data(index, hindi_text, img_prompt, unique_seed):
-    print(f"   ⚡ Generating Shayri Scene {index+1}...")
+# Compatible with Pillow 9.5.0 installed via GitHub Actions
+def create_text_overlay(text, font_path, index):
+    img = Image.new('RGBA', (1080, 1920), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    
+    try: font = ImageFont.truetype(font_path, 65)
+    except: font = ImageFont.load_default()
+    
+    try: wm_font = ImageFont.truetype(font_path, 45)
+    except: wm_font = ImageFont.load_default()
+
+    lines = textwrap.wrap(text, width=22)
+    total_height = len(lines) * 80
+    y_text = (1920 - total_height) // 2
+
+    box_padding = 40
+    draw.rectangle([(100, y_text - box_padding), (980, y_text + total_height + box_padding)], fill=(0, 0, 0, 170))
+
+    for line in lines:
+        try: 
+            # Pillow 9.5.0 compatible text sizing
+            bbox = font.getbbox(line)
+            w = bbox[2] - bbox[0]
+        except: w = len(line) * 30 
+        draw.text(((1080 - w) / 2, y_text), line, font=font, fill="white", stroke_width=3, stroke_fill="black")
+        y_text += 80
+
+    wm_text = "@mistahub"
+    try: 
+        bbox = wm_font.getbbox(wm_text)
+        w_w = bbox[2] - bbox[0]
+    except: w_w = len(wm_text) * 20
+    draw.text(((1080 - w_w) / 2, 1650), wm_text, font=wm_font, fill=(255, 255, 255, 200))
+
+    temp_file = f"temp_overlay_{index}.png"
+    img.save(temp_file)
+    return temp_file
+
+def process_scene_data(index, hindi_text, img_prompt, unique_seed, font_path):
+    print(f"   ⚡ Generating Scene {index+1}...")
     audio_file = f"temp_audio_{index}.mp3"
     
     clean_speech = clean_ai_text(hindi_text)
     asyncio.run(generate_audio(clean_speech, audio_file))
     
-    safe_img = urllib.parse.quote(f"{img_prompt.strip()}, highly detailed, cinematic lighting, moody, 9:16 aspect ratio, 4k resolution")
+    safe_img = urllib.parse.quote(f"{img_prompt.strip()}, highly detailed, beautiful lighting, moody, 9:16 aspect ratio, 4k wallpaper")
     img_url = f"https://image.pollinations.ai/prompt/{safe_img}?width=1080&height=1920&nologo=true&seed={unique_seed+index}"
     img_file = f"temp_scene_{index}.jpg"
     
     image_success = False
     for _ in range(3):
         try:
-            res = requests.get(img_url, headers=get_fake_headers(), timeout=30)
+            res = requests.get(img_url, headers=get_fake_headers(), timeout=20)
             if res.status_code == 200 and len(res.content) > 10000:
                 with open(img_file, 'wb') as f: f.write(res.content)
                 image_success = True
@@ -201,12 +196,15 @@ def process_scene_data(index, hindi_text, img_prompt, unique_seed):
             
     if not image_success:
         Image.new('RGB', (1080, 1920), color=(15,15,15)).save(img_file)
-            
-    return index, audio_file, img_file, clean_speech
+    
+    overlay_file = create_text_overlay(clean_speech, font_path, index)
+    return index, audio_file, img_file, overlay_file
 
-def cleanup_temp_files():
-    print("🧹 Cleaning up temporary files...")
-    for file in glob.glob("temp_*.*"):
+def cleanup_internal_temp_files():
+    # Since GH Actions yaml cleans mp4, mp3, jpg, and ttf, 
+    # we just need to clean our specific .png overlays inside the script.
+    print("🧹 Cleaning up internal temp PNG overlays...")
+    for file in glob.glob("temp_overlay_*.png"):
         try: os.remove(file)
         except: pass
 
@@ -215,72 +213,73 @@ def main():
     unique_seed = random.randint(10000, 999999)
     font_path = download_hindi_font()
     
-    print(f"🚀 Shayri Theme Selected: {trending_topic}")
-    
-    text_prompt = f"You are a master Hindi Shayar. Write a deep, emotional, and beautiful Hindi Shayri about: '{trending_topic}'. Write exactly 4 lines. Output ONLY the raw Hindi Shayri dialogue and an English background image prompt for each line, separated by '|'. Format EXACTLY: [Hindi Shayri Line] | [English Image Prompt]."
+    print(f"🚀 Shayri Theme: {trending_topic}")
+    text_prompt = f"You are a master Hindi Shayar. Write a deep, emotional Hindi Shayri about: '{trending_topic}'. Exactly 4 lines. Output EXACTLY format: [Hindi Shayri Line] | [English Image Prompt]."
     safe_prompt = urllib.parse.quote(text_prompt)
     
     script_lines = []
-    print("⏳ AI Shayri likh raha hai...")
+    print("⏳ Generating Script...")
     for _ in range(5):
         try:
-            res = requests.get(f"https://text.pollinations.ai/prompt/{safe_prompt}?seed={random.randint(1,99999)}", headers=get_fake_headers(), timeout=45)
-            raw_text = res.text.strip()
-            script_lines = [line.split('|', 1) for line in raw_text.split('\n') if '|' in line]
+            res = requests.get(f"https://text.pollinations.ai/prompt/{safe_prompt}?seed={random.randint(1,99999)}", headers=get_fake_headers(), timeout=20)
+            script_lines = [line.split('|', 1) for line in res.text.strip().split('\n') if '|' in line]
             if len(script_lines) >= 3: break
         except: time.sleep(3)
+        
+    if len(script_lines) < 3:
+        script_lines = [
+            ("ज़िंदगी के इस सफर में अजब मोड़ आया", "a lonely road in the dark forest, cinematic"),
+            ("मंजिल का पता नहीं, बस चलता चला गया", "footsteps glowing on a rainy street, neon"),
+            ("कुछ खवाब टूटे, कुछ अपने छूटे", "broken glass pieces reflecting sad light"),
+            ("फिर भी दिल ने कभी हार नहीं माना", "a bright glowing sunrise over dark mountains")
+        ]
             
     results = []
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(process_scene_data, i, text.strip(), img.strip(), unique_seed) for i, (text, img) in enumerate(script_lines)]
+    with ThreadPoolExecutor(max_workers=2) as executor: # GH Actions free tier uses 2-core CPU, keeping workers optimal
+        futures = [executor.submit(process_scene_data, i, text.strip(), img.strip(), unique_seed, font_path) for i, (text, img) in enumerate(script_lines)]
         for future in futures: results.append(future.result())
 
     results.sort(key=lambda x: x[0])
     video_clips = []
     
-    for i, audio_file, img_file, hindi_text in results:
+    for i, audio_file, img_file, overlay_file in results:
         audio_clip = AudioFileClip(audio_file)
-        scene_dur = audio_clip.duration + 0.3
+        scene_dur = audio_clip.duration + 0.4
         
         img_clip = ImageClip(img_file)
         animated_clip = apply_random_motion(img_clip, scene_dur).set_duration(scene_dur)
         
-        txt_clip = TextClip(hindi_text, font=font_path, fontsize=70, color='white', method='caption', size=(900, None), align='center')
-        txt_bg = ImageClip(Image.new('RGBA', (1000, txt_clip.h + 60), (0, 0, 0, 160))).set_duration(scene_dur).set_position('center')
-        txt_clip = txt_clip.set_duration(scene_dur).set_position('center')
+        overlay_clip = ImageClip(overlay_file).set_duration(scene_dur).set_position('center')
+        dark_overlay = ImageClip(np.array(Image.new('RGB', (1080, 1920), color=(0,0,0)))).set_opacity(0.3).set_duration(scene_dur)
         
-        watermark = TextClip("@mistahub", font=font_path, fontsize=45, color='rgba(255,255,255,0.7)').set_duration(scene_dur).set_position(('center', 1650))
-        
-        dark_overlay = ImageClip(Image.new('RGB', (1080, 1920), color=(0,0,0))).set_opacity(0.3).set_duration(scene_dur)
-        
-        synced_clip = CompositeVideoClip([animated_clip.set_position('center'), dark_overlay, txt_bg, txt_clip, watermark], size=(1080, 1920)).set_audio(audio_clip)
+        synced_clip = CompositeVideoClip([animated_clip.set_position('center'), dark_overlay, overlay_clip], size=(1080, 1920)).set_audio(audio_clip)
         
         if i > 0: synced_clip = synced_clip.crossfadein(0.5)
         video_clips.append(synced_clip)
 
     final_video = concatenate_videoclips(video_clips, method="compose", padding=-0.5)
     
-    # 🎵 100% AUTOMATED BGM MIXING FROM WEB (No hardcoded folder)
-    bgm_file = download_dynamic_bgm(trending_topic)
+    bgm_file = download_dynamic_bgm()
     if bgm_file and os.path.exists(bgm_file):
         try:
-            print(f"🎵 Mixing Dynamic Online BGM...")
-            bgm_clip = AudioFileClip(bgm_file).fx(lambda x: x.volumex(0.12)).set_duration(final_video.duration)
+            print(f"🎵 Mixing CC BGM...")
+            bgm_clip = AudioFileClip(bgm_file).fx(afx.volumex, 0.1)
+            bgm_clip = bgm_clip.set_duration(final_video.duration)
             final_audio = CompositeAudioClip([final_video.audio, bgm_clip])
             final_video = final_video.set_audio(final_audio)
         except Exception as e:
-            print(f"⚠️ Error mixing BGM: {e}")
+            print(f"⚠️ BGM Mix Error (Continuing without BGM): {e}")
 
-    date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    final_video_name = f"mistahub_ULTRA_{date_str}.mp4"
+    final_video_name = f"mistahub_final_export.mp4"
 
-    print("\n⚡ Rendering Ultra Agent Video...")
+    print("\n⚡ Rendering Final Video in CI/CD pipeline...")
+    # Threads set to 2 to match GitHub Actions runner specs
     final_video.write_videofile(final_video_name, fps=24, codec="libx264", audio_codec="aac", preset="ultrafast", threads=2, logger=None)
 
     title, desc, tags = generate_youtube_metadata(trending_topic)
     upload_video_to_youtube(final_video_name, title, desc, tags)
     
-    cleanup_temp_files()
+    cleanup_internal_temp_files()
 
 if __name__ == "__main__":
     main()
