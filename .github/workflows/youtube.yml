@@ -1,7 +1,11 @@
 name: Generate & Upload YouTube Short
 
 on:
-  workflow_dispatch: 
+  workflow_dispatch:  # इससे आप जब चाहें मैन्युअल रूप से भी रन कर सकते हैं
+  schedule:
+    - cron: '30 0 * * *'   # रोज़ाना सुबह 6:00 बजे (IST)
+    - cron: '0 6 * * *'    # रोज़ाना सुबह 11:30 बजे (IST)
+    - cron: '30 10 * * *'  # रोज़ाना शाम 4:00 बजे (IST)
 
 jobs:
   build-and-upload:
