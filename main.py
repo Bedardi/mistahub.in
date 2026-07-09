@@ -23,7 +23,8 @@ import google.generativeai as genai
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # Using the latest model to avoid 404 errors
+    model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 def get_fake_headers():
     return {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
@@ -78,13 +79,15 @@ def get_dynamic_gemini_data():
         return json.loads(clean_text)
     except Exception as e:
         print(f"⚠️ Gemini Data Fetch Failed: {e}")
-        # Fallback Data to prevent CI/CD crash
+        # Robust Fallback Data
         return {
-            "metadata": {"title": "Deep Words 💔 #shorts", "description": "Subscribe @mistahub", "tags": ["shayari", "shorts"]},
+            "metadata": {"title": "Deep Words 💔 #shorts", "description": "Subscribe @mistahub", "tags": ["shayari", "shorts", "hindi"]},
             "style": {"background_color": "#111111", "voice_id": "hi-IN-MadhurNeural", "voice_rate": "-5%", "voice_pitch": "-2Hz"},
             "lines": [
                 {"text": "ज़िंदगी के इस सफर में अजब मोड़ आया", "animation": "typewriter", "text_color": "#FFFFFF", "stroke_color": "#000000", "font_size": 75},
-                {"text": "मंजिल का पता नहीं, बस चलता चला गया", "animation": "fadein", "text_color": "#E0E0E0", "stroke_color": "#000000", "font_size": 80}
+                {"text": "मंजिल का पता नहीं, बस चलता चला गया", "animation": "fadein", "text_color": "#E0E0E0", "stroke_color": "#000000", "font_size": 80},
+                {"text": "कुछ खवाब टूटे, कुछ अपने छूटे", "animation": "zoom", "text_color": "#FFFFFF", "stroke_color": "#000000", "font_size": 75},
+                {"text": "फिर भी दिल ने कभी हार नहीं माना", "animation": "slide_up", "text_color": "#FFFFFF", "stroke_color": "#000000", "font_size": 80}
             ]
         }
 
@@ -93,6 +96,7 @@ def hex_to_rgb(hex_color):
     return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
 def create_dynamic_text_image(text, font_path, filename, text_color, stroke_color, font_size):
+    # Ensure background is fully transparent RGBA
     img = Image.new('RGBA', (1080, 1920), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     
@@ -114,7 +118,16 @@ def create_dynamic_text_image(text, font_path, filename, text_color, stroke_colo
 
 def apply_dynamic_animation(clip, animation_type, duration):
     if animation_type == "typewriter":
-        return clip.crop(x1=0, y1=0, x2=lambda t: min(1080, int((t / duration) * 1080)), y2=1920)
+        # FIXED: Custom frame logic to avoid lambda/crop errors
+        def fl_typewriter(get_frame, t):
+            frame = np.copy(get_frame(t))
+            # Calculate width to reveal based on time
+            w = int((t / duration) * 1080)
+            if w < 1080:
+                frame[:, w:] = 0  # Make the unrevealed part fully transparent
+            return frame
+        return clip.fl(lambda gf, t: fl_typewriter(gf, t))
+        
     elif animation_type == "zoom":
         return clip.resize(lambda t: 1 + 0.05 * t).set_position('center')
     elif animation_type == "slide_up":
@@ -133,7 +146,7 @@ def upload_video_to_youtube(video_path, title, description, tags):
     refresh_token = os.environ.get("REFRESH_TOKEN")
 
     if not all([client_id, client_secret, refresh_token]):
-        print("❌ YouTube Credentials missing in GitHub Secrets!")
+        print("❌ YouTube Credentials missing in GitHub Secrets! Skipping upload.")
         return
 
     creds = Credentials(None, refresh_token=refresh_token, token_uri="https://oauth2.googleapis.com/token", client_id=client_id, client_secret=client_secret)
@@ -162,25 +175,21 @@ def main():
     print(f"🎬 Executing Directed Video: {data['metadata']['title']}")
     video_clips = []
     
-    # Extract Voice Specs directed by AI
     v_id = data['style'].get('voice_id', 'hi-IN-MadhurNeural')
     v_rate = data['style'].get('voice_rate', '-5%')
     v_pitch = data['style'].get('voice_pitch', '-2Hz')
     
     for i, line in enumerate(data['lines']):
-        print(f"⚙️ Processing Line {i+1}...")
+        print(f"⚙️ Processing Line {i+1} with animation: {line.get('animation', 'fadein')}")
         
-        # Audio
         audio_file = f"line_{i}.mp3"
         asyncio.run(generate_audio(line['text'], audio_file, v_id, v_rate, v_pitch))
         audio_clip = AudioFileClip(audio_file)
         scene_dur = audio_clip.duration + 0.4 
         
-        # Visuals
         img_file = f"text_{i}.png"
         create_dynamic_text_image(line['text'], font_path, img_file, line['text_color'], line['stroke_color'], line.get('font_size', 75))
         
-        # Animation Hook
         animated_clip = apply_dynamic_animation(ImageClip(img_file).set_duration(scene_dur), line['animation'], scene_dur)
         animated_clip = animated_clip.set_audio(audio_clip)
         
@@ -189,7 +198,6 @@ def main():
     print("🎞️ Stitching all dynamic scenes...")
     final_text_sequence = concatenate_videoclips(video_clips, method="compose")
     
-    # Background Canvas directed by AI
     bg_rgb = hex_to_rgb(data['style'].get("background_color", "#080808"))
     bg_clip = ColorClip(size=(1080, 1920), color=bg_rgb).set_duration(final_text_sequence.duration)
     
@@ -197,15 +205,13 @@ def main():
     final_video_name = "ai_shorts_export.mp4"
     
     print("⚡ Rendering Video...")
-    # Using ultrafast preset and threads optimization
     final_video.write_videofile(final_video_name, fps=24, codec="libx264", audio_codec="aac", preset="ultrafast", threads=2, logger=None)
 
-    # Clean Up
     for f in os.listdir("."):
         if f.endswith(".png") or (f.startswith("line_") and f.endswith(".mp3")):
-            os.remove(f)
+            try: os.remove(f)
+            except: pass
 
-    # UPLOAD
     upload_video_to_youtube(final_video_name, data['metadata']['title'], data['metadata']['description'], data['metadata']['tags'])
     print("✅ Full Pipeline Execution Complete!")
 
