@@ -18,16 +18,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: 'pip' # 🚀 YE HAI GAME CHANGER: Agli baar se installation seconds me hogi!
 
-      - name: Install System Dependencies
+      - name: Install System Dependencies (Lite)
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg imagemagick
-          sudo sed -i 's/none/read,write/g' /etc/ImageMagick-6/policy.xml
+          sudo apt-get install -y ffmpeg
 
-      - name: Install Python Dependencies
+      - name: Install Python Dependencies (Optimized)
+        # 🗑️ Removed pytrends aur extra heavy stuff
         run: |
-          pip install pytrends edge-tts moviepy==1.0.3 requests Pillow==9.5.0 "imageio[pyav]" imageio-ffmpeg google-api-python-client google-auth-httplib2 google-auth-oauthlib google-generativeai numpy
+          pip install edge-tts moviepy==1.0.3 requests Pillow==9.5.0 "imageio[pyav]" imageio-ffmpeg google-api-python-client google-auth-httplib2 google-auth-oauthlib google-generativeai numpy
 
       - name: Run Video Generator & Auto-Upload Script
         env:
