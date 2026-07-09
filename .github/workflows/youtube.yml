@@ -1,11 +1,11 @@
 name: Generate & Upload YouTube Short
 
 on:
-  workflow_dispatch:  # इससे आप जब चाहें मैन्युअल रूप से भी रन कर सकते हैं
+  workflow_dispatch:  
   schedule:
-    - cron: '30 0 * * *'   # रोज़ाना सुबह 6:00 बजे (IST)
-    - cron: '0 6 * * *'    # रोज़ाना सुबह 11:30 बजे (IST)
-    - cron: '30 10 * * *'  # रोज़ाना शाम 4:00 बजे (IST)
+    - cron: '30 0 * * *'   
+    - cron: '0 6 * * *'    
+    - cron: '30 10 * * *'  
 
 jobs:
   build-and-upload:
@@ -26,12 +26,10 @@ jobs:
           sudo sed -i 's/none/read,write/g' /etc/ImageMagick-6/policy.xml
 
       - name: Install Python Dependencies
-        # 🌟 NAYA CHANGE: google-generativeai aur numpy add kiya gaya hai
         run: |
           pip install pytrends edge-tts moviepy==1.0.3 requests Pillow==9.5.0 "imageio[pyav]" imageio-ffmpeg google-api-python-client google-auth-httplib2 google-auth-oauthlib google-generativeai numpy
 
       - name: Run Video Generator & Auto-Upload Script
-        # 🌟 NAYA CHANGE: GEMINI_API_KEY ko environment variables me add kiya
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
@@ -39,7 +37,6 @@ jobs:
           REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
         run: python main.py
 
-      - name: Clean Up Everything (Repo Stays Clean)
-        # 🌟 NAYA CHANGE: *.png add kiya taaki text overlays delete ho jayein
+      - name: Clean Up Everything
         run: |
           rm -f *.mp4 *.mp3 *.jpg *.png HindiFont.ttf
