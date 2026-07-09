@@ -26,17 +26,20 @@ jobs:
           sudo sed -i 's/none/read,write/g' /etc/ImageMagick-6/policy.xml
 
       - name: Install Python Dependencies
+        # 🌟 NAYA CHANGE: google-generativeai aur numpy add kiya gaya hai
         run: |
-          pip install pytrends edge-tts moviepy==1.0.3 requests Pillow==9.5.0 "imageio[pyav]" imageio-ffmpeg google-api-python-client google-auth-httplib2 google-auth-oauthlib
+          pip install pytrends edge-tts moviepy==1.0.3 requests Pillow==9.5.0 "imageio[pyav]" imageio-ffmpeg google-api-python-client google-auth-httplib2 google-auth-oauthlib google-generativeai numpy
 
       - name: Run Video Generator & Auto-Upload Script
-        # Yahan hum GitHub Secrets ko Python ke Environment Variables me daal rahe hain
+        # 🌟 NAYA CHANGE: GEMINI_API_KEY ko environment variables me add kiya
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
           REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
-        run: python generate_preview.py
+        run: python main.py
 
       - name: Clean Up Everything (Repo Stays Clean)
+        # 🌟 NAYA CHANGE: *.png add kiya taaki text overlays delete ho jayein
         run: |
-          rm -f *.mp4 *.mp3 *.jpg HindiFont.ttf
+          rm -f *.mp4 *.mp3 *.jpg *.png HindiFont.ttf
