@@ -1,10 +1,9 @@
 import os
 import requests
-import asyncio
 import json
 import textwrap
-import edge_tts
 import base64
+import random
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import datetime
