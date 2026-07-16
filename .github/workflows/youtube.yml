@@ -3,10 +3,9 @@ name: Generate & Upload YouTube Short
 on:
   workflow_dispatch:  
   schedule:
-    # 🕒 GitHub Actions runs in UTC. India time (IST) is UTC + 5:30.
-    - cron: '30 2 * * *'   # 02:30 UTC -> 08:00 AM IST (Subah)
-    - cron: '30 8 * * *'   # 08:30 UTC -> 02:00 PM IST (Dopahar)
-    - cron: '30 14 * * *'  # 14:30 UTC -> 08:00 PM IST (Raat)
+    - cron: '30 2 * * *'   
+    - cron: '30 8 * * *'   
+    - cron: '30 14 * * *'  
 
 jobs:
   build-and-upload:
@@ -19,19 +18,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          cache: 'pip' # 🚀 YE HAI GAME CHANGER: Agli baar se installation seconds me hogi!
+          cache: 'pip' # Ab ye file milne ke baad cache perfectly kaam karega
 
-      - name: Install System Dependencies (Lite)
+      - name: Install System Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: Install Python Dependencies (Optimized)
+      - name: Install Python Dependencies
         run: |
-          # Baki sabhi libraries normal install hongi
-          pip install edge-tts moviepy==1.0.3 requests Pillow==9.5.0 "imageio[pyav]" imageio-ffmpeg google-api-python-client google-auth-httplib2 google-auth-oauthlib numpy
-          
-          # 🚀 Gemini (Imagen 3) ke liye latest version zaroori hai isliye isko upgrade mode (-U) me rakha hai
+          # requirements.txt file ka use karke install
+          pip install -r requirements.txt
           pip install -U google-generativeai
 
       - name: Run Video Generator & Auto-Upload Script
