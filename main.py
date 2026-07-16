@@ -4,6 +4,7 @@ import asyncio
 import json
 import textwrap
 import edge_tts
+import base64
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import datetime
@@ -16,15 +17,8 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-# Gemini AI (Make sure to run: pip install -U google-generativeai)
-import google.generativeai as genai
-from google.generativeai import ImageGenerationModel
-
-# Configure Gemini
+# Gemini API Key
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    text_model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 def get_fake_headers():
     return {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
@@ -38,7 +32,7 @@ def download_hindi_font():
     return font_path
 
 def get_everything_from_gemini():
-    print("🧠 Requesting complete Video Blueprint from Gemini JSON Text Model...")
+    print("🧠 Requesting complete Video Blueprint via Gemini REST API (No Library)...")
     
     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -80,46 +74,58 @@ def get_everything_from_gemini():
     - Animations allowed: 'typewriter', 'fadein', 'zoom', 'slide_up'.
     """
     
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "temperature": 1.0
+        }
+    }
+    
     try:
-        res = text_model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                response_mime_type="application/json",
-                temperature=1.0 
-            )
-        )
-        data = json.loads(res.text)
-        print("✅ Received JSON Blueprint successfully!")
-        return data
+        response = requests.post(url, headers=headers, json=payload)
+        data = response.json()
+        
+        # Parse the text response from the API payload
+        json_text = data['candidates'][0]['content']['parts'][0]['text']
+        blueprint = json.loads(json_text)
+        print("✅ Received JSON Blueprint successfully via REST API!")
+        return blueprint
     except Exception as e:
-        raise Exception(f"❌ Gemini Text API Failed: {e}")
+        raise Exception(f"❌ Gemini Text API Failed: {e}\nAPI Response: {response.text}")
 
 def generate_image_with_gemini(image_prompt):
-    print(f"🎨 Generating High-Quality Image using Gemini (Imagen 3) for prompt: '{image_prompt}'...")
+    print(f"🎨 Generating High-Quality Image via Gemini REST API for prompt: '{image_prompt}'...")
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key={GEMINI_API_KEY}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "instances": [{"prompt": image_prompt}],
+        "parameters": {
+            "sampleCount": 1,
+            "aspectRatio": "9:16",
+            "outputOptions": {"mimeType": "image/jpeg"}
+        }
+    }
+    
     try:
-        # Using Google's Imagen model via Gemini API for direct image generation
-        imagen = ImageGenerationModel("imagen-3.0-generate-001")
-        result = imagen.generate_images(
-            prompt=image_prompt,
-            number_of_images=1,
-            aspect_ratio="9:16", # Perfect aspect ratio for YouTube Shorts!
-            output_mime_type="image/jpeg"
-        )
+        response = requests.post(url, headers=headers, json=payload)
+        data = response.json()
         
-        img_path = "dynamic_bg.jpg"
-        image_obj = result.images[0]
-        
-        # Save the image file locally
-        try:
-            image_obj.save(img_path)
-        except AttributeError:
+        if "predictions" in data and len(data["predictions"]) > 0:
+            image_data = data["predictions"][0]["bytesBase64Encoded"]
+            img_path = "dynamic_bg.jpg"
             with open(img_path, "wb") as f:
-                f.write(image_obj.image_bytes)
-                
-        print("✅ High-Quality Background Image generated via Gemini!")
-        return img_path
+                f.write(base64.b64decode(image_data))
+            print("✅ High-Quality Background Image generated!")
+            return img_path
+        else:
+            print(f"⚠️ Image Response Error: {data}")
+            return None
     except Exception as e:
-        print(f"⚠️ Gemini Image Generation Failed: {e}")
+        print(f"⚠️ Image Request Failed: {e}")
         return None
 
 def hex_to_rgb(hex_color):
@@ -197,11 +203,9 @@ def main():
 
     font_path = download_hindi_font()
     
-    # Step 1: Call Gemini Text API for Script & Details
     data = get_everything_from_gemini()
     print(f"🎬 Title: {data['metadata']['title']}")
     
-    # Step 2: Call Gemini Image API (Imagen 3) to generate the background
     image_prompt = data.get("image_prompt", "Lord Shiva meditating in Himalayas cinematic, no text")
     bg_image_path = generate_image_with_gemini(image_prompt)
     
@@ -230,7 +234,6 @@ def main():
     
     if bg_image_path and os.path.exists(bg_image_path):
         bg_clip = ImageClip(bg_image_path).resize(width=1080, height=1920)
-        # Slow zoom-in animation
         bg_clip = bg_clip.resize(lambda t: 1 + 0.015 * t).set_position('center').set_duration(final_text_sequence.duration)
         dark_overlay = ColorClip(size=(1080, 1920), color=(0,0,0)).set_opacity(0.4).set_duration(final_text_sequence.duration)
         bg_clip = CompositeVideoClip([bg_clip, dark_overlay])
