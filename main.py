@@ -8,9 +8,8 @@ import urllib.parse
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import datetime
-
-# Google TTS (Awaaz ke liye)
-from gtts import gTTS
+import asyncio
+import edge_tts
 
 # MoviePy for Video Editing
 from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips, ColorClip, CompositeVideoClip
@@ -94,13 +93,8 @@ def get_everything_from_gemini(video_type):
         raise Exception(f"❌ Gemini Text API Failed: {e}")
 
 def generate_image_free_api(image_prompt, video_type):
-    # Google API Blocked Imagen 4 for new users, so using an optimized free alternative
     print(f"🎨 Generating Image via Free AI for prompt: '{image_prompt}'...")
-    
-    # Adjust resolution based on short/long video
     width, height = (1080, 1920) if video_type == "short" else (1920, 1080)
-    
-    # URL Encoding the prompt
     encoded_prompt = urllib.parse.quote(image_prompt)
     image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true"
     
@@ -143,13 +137,11 @@ def create_dynamic_text_image(text, font_path, filename, text_color, stroke_colo
     img.save(filename)
     return filename
 
-def apply_dynamic_animation(clip, animation_type, duration):
-    return clip.crossfadein(0.8) # Kept simple to avoid render bugs
-
-def generate_audio_gtts(text, filename):
-    # Google TTS ekdum natural hindi pause ke sath bolega
-    tts = gTTS(text=text, lang='hi', slow=False)
-    tts.save(filename)
+# 🔴 YAHAN edge-tts KA USE HUA HAI (Zabardast Viral Voice ke liye)
+async def generate_audio_edge(text, filename):
+    # 'hi-IN-MadhurNeural' ekdum uss video jaisi deep aur fast storytelling aawaz dega
+    communicate = edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+5%", pitch="+0Hz")
+    await communicate.save(filename)
 
 def upload_video_to_youtube(video_path, title, description, tags, video_type):
     print(f"\n🚀 Uploading to YouTube: {title}")
@@ -195,8 +187,6 @@ def main():
     print(f"🎬 Title: {data['metadata']['title']}")
     
     image_prompt = data.get("image_prompt", "Lord Shiva meditating in Himalayas cinematic, no text")
-    
-    # 🔴 Yahan ab free image API call ho rahi hai taaki 404 error na aaye
     bg_image_path = generate_image_free_api(image_prompt, video_type)
     
     video_w, video_h = (1080, 1920) if video_type == "short" else (1920, 1080)
@@ -209,10 +199,11 @@ def main():
         
         audio_file = f"line_{i}.mp3"
         
-        # 🔴 BADA FIX: Yahan 'asyncio.run' aur edge-tts ki jagah seedha gTTS use kiya hai
-        generate_audio_gtts(line['text'], audio_file)
+        # 🔴 BADA FIX: Yahan 'asyncio.run' ka use karke edge-tts call kiya hai
+        asyncio.run(generate_audio_edge(line['text'], audio_file))
         
         audio_clip = AudioFileClip(audio_file)
+        # Ek second ka thehrav jisse video natural lage
         scene_dur = audio_clip.duration + 1.0 
         
         img_file = f"text_{i}.png"
