@@ -32,7 +32,7 @@ def download_hindi_font():
     return font_path
 
 def get_everything_from_gemini():
-    print("🧠 Requesting complete Video Blueprint via Gemini REST API (No Library)...")
+    print("🧠 Requesting complete Video Blueprint via Gemini REST API...")
     
     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -74,7 +74,8 @@ def get_everything_from_gemini():
     - Animations allowed: 'typewriter', 'fadein', 'zoom', 'slide_up'.
     """
     
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # 🔴 FIX: Changed model name to gemini-1.5-flash-latest
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_API_KEY}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
@@ -88,6 +89,9 @@ def get_everything_from_gemini():
         response = requests.post(url, headers=headers, json=payload)
         data = response.json()
         
+        if "error" in data:
+             raise Exception(f"API returned an error: {data['error']}")
+             
         # Parse the text response from the API payload
         json_text = data['candidates'][0]['content']['parts'][0]['text']
         blueprint = json.loads(json_text)
