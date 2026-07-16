@@ -32,7 +32,7 @@ def download_hindi_font():
     return font_path
 
 def get_everything_from_gemini():
-    print("🧠 Requesting complete Video Blueprint via Gemini REST API...")
+    print("🧠 Requesting Video Blueprint via Gemini 2.5 Flash...")
     
     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -74,8 +74,8 @@ def get_everything_from_gemini():
     - Animations allowed: 'typewriter', 'fadein', 'zoom', 'slide_up'.
     """
     
-    # ✅ FIX: Yahan ekdum stable version 'gemini-1.5-flash-001' use kiya hai jo delete nahi hota
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent?key={GEMINI_API_KEY}"
+    # ✅ Updated to models/gemini-2.5-flash
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
@@ -94,15 +94,16 @@ def get_everything_from_gemini():
              
         json_text = data['candidates'][0]['content']['parts'][0]['text']
         blueprint = json.loads(json_text)
-        print("✅ Received JSON Blueprint successfully via REST API!")
+        print("✅ Received JSON Blueprint successfully!")
         return blueprint
     except Exception as e:
         raise Exception(f"❌ Gemini Text API Failed: {e}\nAPI Response: {response.text}")
 
 def generate_image_with_gemini(image_prompt):
-    print(f"🎨 Generating High-Quality Image via Gemini REST API for prompt: '{image_prompt}'...")
+    print(f"🎨 Generating Image via Imagen 4.0 for prompt: '{image_prompt}'...")
     
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key={GEMINI_API_KEY}"
+    # ✅ Updated to models/imagen-4.0-generate-001
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key={GEMINI_API_KEY}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "instances": [{"prompt": image_prompt}],
@@ -122,7 +123,7 @@ def generate_image_with_gemini(image_prompt):
             img_path = "dynamic_bg.jpg"
             with open(img_path, "wb") as f:
                 f.write(base64.b64decode(image_data))
-            print("✅ High-Quality Background Image generated!")
+            print("✅ Background Image generated!")
             return img_path
         else:
             print(f"⚠️ Image Response Error: {data}")
