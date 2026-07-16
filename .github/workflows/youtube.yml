@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          cache: 'pip' # Ab ye file milne ke baad cache perfectly kaam karega
+          cache: 'pip'
 
       - name: Install System Dependencies
         run: |
@@ -27,9 +27,7 @@ jobs:
 
       - name: Install Python Dependencies
         run: |
-          # requirements.txt file ka use karke install
           pip install -r requirements.txt
-          pip install -U google-generativeai
 
       - name: Run Video Generator & Auto-Upload Script
         env:
