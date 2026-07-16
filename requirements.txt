@@ -1,4 +1,4 @@
-edge-tts
+gTTS
 moviepy==1.0.3
 requests
 Pillow==9.5.0
@@ -8,4 +8,3 @@ google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
 numpy
-google-generativeai
