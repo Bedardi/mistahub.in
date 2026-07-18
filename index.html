@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>MistaHub - Premium App Store</title>
+    
+    <!-- Tailwind & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- AdSense Script -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f1f3f6; -webkit-tap-highlight-color: transparent; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Dynamic Theme Classes (Applied via JS) */
+        .bg-dynamic { background-color: var(--theme-color, #2874f0) !important; }
+        .text-dynamic { color: var(--theme-color, #2874f0) !important; }
+        .border-dynamic { border-color: var(--theme-color, #2874f0) !important; }
+        
+        .drawer-open { transform: translateX(0%); } .drawer-closed { transform: translateX(-100%); }
+        .sheet-open { transform: translateY(0%); } .sheet-closed { transform: translateY(100%); }
+        .carousel-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
+        .carousel-slide { min-width: 100%; scroll-snap-align: center; }
+        .hero-dot { transition: all 0.3s ease; }
+        
+        .rich-text * { font-family: 'Inter', sans-serif !important; }
+        .rich-text p { margin-bottom: 0.8rem; line-height: 1.6; font-size: 14px; color: #475569;}
+        .ad-placeholder { background: #e2e8f0; text-align: center; padding: 10px; border-radius: 8px; font-size: 11px; color: #94a3b8; font-weight: bold; text-transform: uppercase; margin: 10px 0; }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body class="pb-[60px] max-w-[480px] mx-auto bg-white min-h-screen shadow-2xl relative overflow-x-hidden">
+
+    <!-- INITIAL LOADING SPLASH SCREEN -->
+    <div id="splashScreen" class="fixed inset-0 z-[200] bg-dynamic flex flex-col justify-center items-center text-white transition-opacity duration-500 max-w-[480px] mx-auto">
+        <div class="w-20 h-20 bg-white rounded-2xl flex items-center justify-center shadow-2xl mb-4 animate-bounce">
+            <i class="fa-solid fa-spinner fa-spin text-dynamic text-3xl"></i>
+        </div>
+        <h1 class="text-2xl font-black tracking-tight italic" id="splashText">Loading...</h1>
+    </div>
+
+    <!-- DRAWER & SHARE OVERLAYS -->
+    <div id="drawerOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] hidden opacity-0 transition-opacity max-w-[480px] mx-auto" onclick="toggleDrawer()"></div>
+    <div id="navDrawer" class="fixed inset-y-0 left-0 w-[75%] max-w-sm bg-white z-[70] drawer-closed transition-transform duration-300 flex flex-col shadow-2xl">
+        <div class="bg-dynamic p-6 pt-10 flex flex-col gap-3 text-white">
+            <div class="w-14 h-14 bg-white rounded-full flex items-center justify-center text-dynamic text-2xl font-black shadow-inner overflow-hidden">
+                <img id="drawerLogo" src="" class="w-10 h-10 object-cover hidden">
+                <i id="drawerIcon" class="fa-solid fa-store"></i>
+            </div>
+            <div><h2 id="drawerTitle" class="text-xl font-black leading-tight">MistaHub</h2><p class="text-[11px] font-medium opacity-80 uppercase tracking-widest mt-1">Premium Store</p></div>
+        </div>
+        <div class="p-2 flex-1 overflow-y-auto">
+            <button onclick="navigate('/')" class="w-full flex items-center gap-4 py-3.5 px-4 text-slate-700 font-bold hover:bg-slate-50 rounded-xl transition"><i class="fa-solid fa-house w-6 text-center text-slate-400"></i> Home</button>
+            <button onclick="navigate('/page/about-us')" class="w-full flex items-center gap-4 py-3.5 px-4 text-slate-700 font-bold hover:bg-slate-50 rounded-xl transition"><i class="fa-solid fa-circle-info w-6 text-center text-slate-400"></i> About Us</button>
+            <button onclick="navigate('/page/privacy-policy')" class="w-full flex items-center gap-4 py-3.5 px-4 text-slate-700 font-bold hover:bg-slate-50 rounded-xl transition"><i class="fa-solid fa-shield-halved w-6 text-center text-slate-400"></i> Privacy Policy</button>
+        </div>
+    </div>
+
+    <div id="shareOverlay" class="fixed inset-0 bg-black/60 z-[80] hidden opacity-0 transition-opacity max-w-[480px] mx-auto" onclick="toggleShare()"></div>
+    <div id="shareSheet" class="fixed bottom-0 inset-x-0 mx-auto max-w-[480px] w-full bg-white z-[90] sheet-closed transition-transform duration-300 rounded-t-3xl shadow-[0_-10px_20px_rgba(0,0,0,0.1)] pb-[env(safe-area-inset-bottom)]">
+        <div class="p-4 flex justify-between items-center border-b border-slate-100"><h3 class="font-black text-slate-800 text-lg">Share Content</h3><button onclick="toggleShare()" class="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="p-6 grid grid-cols-4 gap-4 text-center">
+            <button onclick="shareSocial('wa')" class="flex flex-col items-center gap-2"><div class="w-12 h-12 bg-[#25D366] text-white rounded-full flex justify-center items-center text-2xl shadow"><i class="fa-brands fa-whatsapp"></i></div><span class="text-[10px] font-bold text-slate-600">WhatsApp</span></button>
+            <button onclick="shareSocial('fb')" class="flex flex-col items-center gap-2"><div class="w-12 h-12 bg-[#1877F2] text-white rounded-full flex justify-center items-center text-2xl shadow"><i class="fa-brands fa-facebook-f"></i></div><span class="text-[10px] font-bold text-slate-600">Facebook</span></button>
+            <button onclick="shareSocial('tg')" class="flex flex-col items-center gap-2"><div class="w-12 h-12 bg-[#229ED9] text-white rounded-full flex justify-center items-center text-2xl shadow"><i class="fa-brands fa-telegram"></i></div><span class="text-[10px] font-bold text-slate-600">Telegram</span></button>
+            <button onclick="copyToClipboard()" class="flex flex-col items-center gap-2"><div class="w-12 h-12 bg-slate-200 text-slate-700 rounded-full flex justify-center items-center text-xl shadow"><i class="fa-solid fa-link"></i></div><span class="text-[10px] font-bold text-slate-600">Copy Link</span></button>
+        </div>
+    </div>
+
+    <!-- MAIN ROUTING CONTAINER -->
+    <div id="appContainer"></div>
+
+    <!-- BOTTOM NAVIGATION -->
+    <div id="bottomNav" class="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 flex justify-around items-center h-[60px] z-40 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.04)] hidden max-w-[480px] mx-auto">
+        <button onclick="navigate('/?tab=home')" class="nav-btn flex flex-col items-center gap-1 w-1/4 text-slate-400 hover:text-dynamic transition" data-target="home">
+            <i class="fa-solid fa-house text-[20px]"></i><span class="text-[10px] font-bold">Home</span>
+        </button>
+        <button onclick="navigate('/?tab=category')" class="nav-btn flex flex-col items-center gap-1 w-1/4 text-slate-400 hover:text-dynamic transition" data-target="category">
+            <i class="fa-solid fa-layer-group text-[20px]"></i><span class="text-[10px] font-bold">Apps</span>
+        </button>
+        <button onclick="navigate('/?tab=blog')" class="nav-btn flex flex-col items-center gap-1 w-1/4 text-slate-400 hover:text-dynamic transition" data-target="blog">
+            <i class="fa-solid fa-newspaper text-[20px]"></i><span class="text-[10px] font-bold">Blog</span>
+        </button>
+        <button onclick="navigate('/?tab=search')" class="nav-btn flex flex-col items-center gap-1 w-1/4 text-slate-400 hover:text-dynamic transition" data-target="search">
+            <i class="fa-solid fa-magnifying-glass text-[20px]"></i><span class="text-[10px] font-bold">Search</span>
+        </button>
+    </div>
+
+<script>
+    // =========================================
+    // 1. CONFIGURATION & DATA FETCHING
+    // =========================================
+    const CDN_URL = "https://cdn.mistahub.in";
+    let storeData = [], blogData = [], settingsData = {};
+    let allCategories = ['All'];
+    let heroAutoScrollInterval;
+
+    // Helper: Convert relative paths to Absolute CDN URLs
+    function fixImg(url) {
+        if (!url) return '';
+        url = url.trim();
+        if (url.startsWith('http') || url.startsWith('data:')) return url;
+        return `${CDN_URL}/${url.replace(/^\/+/, '')}`;
+    }
+
+    async function initApp() {
+        try {
+            const timestamp = new Date().getTime(); // Prevent cache during fetch
+            const [appsRes, blogsRes, settingsRes] = await Promise.all([
+                fetch(`${CDN_URL}/store.js?t=${timestamp}`).catch(()=>null),
+                fetch(`${CDN_URL}/blog.json?t=${timestamp}`).catch(()=>null),
+                fetch(`${CDN_URL}/settings.json?t=${timestamp}`).catch(()=>null)
+            ]);
+
+            if (appsRes && appsRes.ok) storeData = await appsRes.json();
+            if (blogsRes && blogsRes.ok) blogData = await blogsRes.json();
+            if (settingsRes && settingsRes.ok) settingsData = await settingsRes.json();
+
+            // Extract Categories
+            storeData.forEach(app => {
+                let cat = app.category || "Apps";
+                if (!allCategories.includes(cat)) allCategories.push(cat);
+            });
+
+            // Set Theme & Branding
+            if(settingsData.theme_color) document.documentElement.style.setProperty('--theme-color', settingsData.theme_color);
+            if(settingsData.site_title) document.getElementById('drawerTitle').innerText = settingsData.site_title;
+            if(settingsData.site_icon) {
+                document.getElementById('drawerIcon').classList.add('hidden');
+                document.getElementById('drawerLogo').src = fixImg(settingsData.site_icon);
+                document.getElementById('drawerLogo').classList.remove('hidden');
+            }
+
+            // Remove Splash Screen
+            const splash = document.getElementById('splashScreen');
+            splash.style.opacity = '0';
+            setTimeout(() => splash.style.display = 'none', 500);
+
+            // Trigger Routing
+            handleRoute();
+            window.addEventListener('popstate', handleRoute); // Handle back button
+
+        } catch (error) {
+            console.error("Error loading data:", error);
+            document.getElementById('splashText').innerText = "Network Error!";
+            document.getElementById('splashText').classList.add('text-red-300');
+        }
+    }
+
+    // =========================================
+    // 2. ROUTING LOGIC (SPA)
+    // =========================================
+    function navigate(path) {
+        history.pushState(null, '', path);
+        handleRoute();
+    }
+
+    function handleRoute() {
+        const path = window.location.pathname;
+        const searchParams = new URLSearchParams(window.location.search);
+        const container = document.getElementById('appContainer');
+        const bottomNav = document.getElementById('bottomNav');
+        
+        window.scrollTo(0, 0); // Reset scroll position
+        if(heroAutoScrollInterval) clearInterval(heroAutoScrollInterval); // Clear slider interval
+
+        if (path.startsWith('/app/')) {
+            const id = path.split('/')[2];
+            renderAppDetails(id, container);
+            bottomNav.classList.add('hidden');
+        } else if (path.startsWith('/blog/')) {
+            const id = path.split('/')[2];
+            renderBlogDetails(id, container);
+            bottomNav.classList.add('hidden');
+        } else if (path.startsWith('/page/')) {
+            const id = path.split('/')[2];
+            renderPage(id, container);
+            bottomNav.classList.add('hidden');
+        } else {
+            // Home / Categories / Search / Blogs Tab
+            const tab = searchParams.get('tab') || 'home';
+            renderMainTabs(tab, container);
+            bottomNav.classList.remove('hidden');
+            
+            // Highlight Bottom Nav
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active', 'text-dynamic');
+                btn.classList.add('text-slate-400');
+                if (btn.dataset.target === tab) {
+                    btn.classList.add('active', 'text-dynamic');
+                    btn.classList.remove('text-slate-400');
+                }
+            });
+        }
+        
+        // Push Adsense
+        setTimeout(() => {
+            try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch(e){}
+        }, 500);
+    }
+
+    // =========================================
+    // 3. RENDER FUNCTIONS
+    // =========================================
+    function renderMainTabs(activeTab, container) {
+        let html = `
+        <div>
+            <header class="bg-dynamic p-3 sticky top-0 z-40 shadow-md text-white flex gap-3 items-center">
+                <button onclick="toggleDrawer()" class="w-10 h-10 flex items-center justify-center text-xl active:scale-90 rounded-full hover:bg-white/10 transition"><i class="fa-solid fa-bars"></i></button>
+                <div class="leading-none flex-1">
+                    <h1 class="text-[22px] font-black italic tracking-tight drop-shadow-sm">${settingsData.site_title || 'MistaHub'}</h1>
+                    <span class="text-[10px] italic opacity-90">Premium <span class="text-yellow-400 font-bold">App Store <i class="fa-solid fa-star text-[8px]"></i></span></span>
+                </div>
+                <button onclick="navigate('/?tab=search')" class="text-xl active:scale-90 w-10 h-10 flex items-center justify-center hover:bg-white/10 rounded-full"><i class="fa-solid fa-magnifying-glass"></i></button>
+            </header>
+        `;
+
+        // TAB: HOME
+        html += `<main id="tab-home" class="tab-content ${activeTab === 'home' ? 'active' : ''}">`;
+        html += `
+            <div class="bg-dynamic px-3 pb-3">
+                <div class="relative w-full bg-white rounded-[4px] flex items-center shadow-inner cursor-pointer" onclick="navigate('/?tab=search')">
+                    <i class="fa-solid fa-magnifying-glass text-slate-400 pl-3"></i>
+                    <div class="w-full py-2.5 px-3 text-sm text-slate-400 font-medium">Search for apps & games...</div>
+                </div>
+            </div>
+            
+            <div class="bg-white px-3 py-3 mb-2 flex gap-5 overflow-x-auto no-scrollbar shadow-sm">
+                ${allCategories.map(cat => `
+                    <button onclick="navigate('/?tab=category'); setTimeout(()=>filterCat('${cat}'), 100);" class="flex flex-col items-center min-w-[60px] active:scale-95 transition">
+                        <div class="w-12 h-12 bg-slate-50 border border-slate-100 rounded-full flex items-center justify-center text-dynamic mb-1.5 shadow-sm"><i class="fa-solid ${cat=='All'?'fa-border-all':'fa-shapes'} text-lg"></i></div>
+                        <span class="text-[10px] font-bold text-slate-700">${cat}</span>
+                    </button>
+                `).join('')}
+            </div>
+            
+            <div class="px-3"><div class="ad-placeholder"><ins class="adsbygoogle" style="display:block" data-ad-format="auto"></ins></div></div>
+        `;
+
+        // Hero Slider
+        const featured = storeData.slice(0, 3);
+        if(featured.length > 0) {
+            html += `
+            <div class="bg-white p-3 mb-2 shadow-sm relative">
+                <div class="carousel-track rounded-xl overflow-hidden relative shadow-sm" id="heroSlider" onscroll="updateHeroDots()">
+                    ${featured.map((f, i) => `
+                    <div class="carousel-slide relative h-36 flex-shrink-0 cursor-pointer" onclick="navigate('/app/${f.id}')">
+                        <img src="${fixImg(f.icon)}" class="absolute inset-0 w-full h-full object-cover blur-sm opacity-60">
+                        <div class="absolute inset-0 bg-gradient-to-r ${i%2==0 ? 'from-blue-900 to-indigo-800' : 'from-slate-900 to-slate-800'} opacity-95"></div>
+                        <div class="absolute inset-0 flex items-center p-4">
+                            <div class="flex-1 text-white pr-2">
+                                <span class="bg-yellow-400 text-yellow-900 text-[9px] font-black px-2 py-0.5 rounded shadow uppercase tracking-widest">Featured App</span>
+                                <h3 class="text-[17px] font-black leading-tight line-clamp-2 mt-1.5 mb-1 drop-shadow-sm">${f.name}</h3>
+                                <p class="text-[11px] font-bold opacity-90"><i class="fa-solid fa-download text-yellow-400"></i> Free Download</p>
+                            </div>
+                            <div class="w-24 h-24 bg-white/20 backdrop-blur-md rounded-xl p-1 shadow-lg border border-white/30 transform rotate-3"><img src="${fixImg(f.icon)}" class="w-full h-full object-cover rounded-lg"></div>
+                        </div>
+                    </div>`).join('')}
+                </div>
+                <div class="flex justify-center gap-1.5 mt-3" id="heroDots">
+                    ${featured.map((_, i) => `<div class="w-1.5 h-1.5 rounded-full bg-slate-300 hero-dot ${i==0?'!w-5 !bg-dynamic':''}"></div>`).join('')}
+                </div>
+            </div>`;
+        }
+
+        // Apps Grid
+        html += `
+            <div class="grid grid-cols-2 gap-[2px] bg-slate-200 pb-4">
+                ${storeData.map((app, idx) => `
+                <div class="bg-white p-2.5 pb-4 cursor-pointer relative product-card" onclick="navigate('/app/${app.id}')">
+                    ${(idx == 0 || idx == 3) ? '<div class="absolute top-2 left-0 bg-[#388e3c] text-white text-[8px] font-black px-1.5 py-0.5 rounded-r shadow-sm uppercase tracking-widest z-10">Trending</div>' : ''}
+                    <div class="w-full h-36 bg-slate-50 rounded-lg p-2 flex items-center justify-center relative overflow-hidden"><img src="${fixImg(app.icon)}" class="w-20 h-20 object-cover rounded-[14px] shadow-sm"></div>
+                    <div class="mt-3 px-1">
+                        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-0.5">${app.category || 'App'}</p>
+                        <h3 class="text-[13px] font-semibold text-slate-800 line-clamp-2 leading-tight hover:text-dynamic transition">${app.name}</h3>
+                        <div class="flex items-center justify-between mt-1.5">
+                            <div class="bg-[#388e3c] text-white text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">${app.rating} <i class="fa-solid fa-star text-[7px]"></i></div>
+                            <span class="text-xs font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded shadow-sm border border-slate-200">GET</span>
+                        </div>
+                    </div>
+                </div>`).join('')}
+            </div>
+        </main>`;
+
+        // TAB: CATEGORIES
+        html += `<main id="tab-category" class="tab-content ${activeTab === 'category' ? 'active' : ''} p-4 bg-white min-h-screen">
+            <h2 class="text-xl font-black text-slate-900 mb-4">Categories</h2>
+            <div id="category-list" class="grid grid-cols-2 gap-3">
+                ${allCategories.filter(c => c !== 'All').map(cat => `
+                <div onclick="filterCat('${cat}')" class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col justify-center items-center h-24 active:scale-95 transition shadow-sm cursor-pointer">
+                    <h3 class="font-black text-sm text-slate-800 text-center">${cat}</h3>
+                </div>`).join('')}
+            </div>
+            <div id="filtered-apps" class="hidden">
+                <div class="flex items-center gap-3 mb-4 border-b border-slate-100 pb-3">
+                    <button onclick="clearFilter()" class="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center active:scale-90"><i class="fa-solid fa-arrow-left"></i></button>
+                    <h2 id="filter-title" class="text-lg font-black text-slate-900">Apps</h2>
+                </div>
+                <div id="filtered-apps-list" class="space-y-2"></div>
+            </div>
+        </main>`;
+
+        // TAB: BLOGS
+        html += `<main id="tab-blog" class="tab-content ${activeTab === 'blog' ? 'active' : ''} p-3 bg-[#f1f3f6] min-h-screen">
+            <div class="space-y-3">
+                ${blogData.map(blog => `
+                <div onclick="navigate('/blog/${blog.id}')" class="bg-white p-3 rounded-xl shadow-sm flex items-center gap-4 cursor-pointer active:scale-95 transition">
+                    <img src="${fixImg(blog.image)}" class="w-20 h-20 rounded-lg object-cover bg-slate-50 border border-slate-100 flex-shrink-0">
+                    <div class="flex-1 min-w-0">
+                        <h3 class="font-bold text-sm text-slate-800 leading-snug line-clamp-2">${blog.title}</h3>
+                        <p class="text-[10px] text-dynamic font-bold mt-1.5 uppercase tracking-wider"><i class="fa-regular fa-calendar mr-1"></i> ${blog.date || 'New'}</p>
+                    </div>
+                </div>`).join('')}
+            </div>
+        </main>`;
+
+        // TAB: SEARCH
+        html += `<main id="tab-search" class="tab-content ${activeTab === 'search' ? 'active' : ''} p-4 bg-white min-h-screen">
+            <div class="relative w-full bg-slate-50 border border-slate-200 rounded-lg flex items-center shadow-inner mb-6">
+                <i class="fa-solid fa-magnifying-glass text-slate-400 pl-3"></i>
+                <input type="text" id="searchInput" placeholder="Search apps, games..." class="w-full py-3 px-3 text-sm text-slate-800 font-medium focus:outline-none bg-transparent" oninput="handleSearch(this.value)">
+            </div>
+            <div id="searchResults" class="space-y-2">
+                <div class="py-10 text-center"><i class="fa-solid fa-magnifying-glass text-4xl text-slate-200 mb-3"></i><p class="text-slate-400 font-medium text-xs">Start typing to search...</p></div>
+            </div>
+        </main></div>`;
+
+        container.innerHTML = html;
+
+        // Init slider logic after rendering
+        if(activeTab === 'home') initSlider();
+    }
+
+    function renderAppDetails(id, container) {
+        const app = storeData.find(a => a.id === id);
+        if(!app) return navigate('/');
+
+        let ssHtml = '';
+        if(app.screenshots) {
+            let ssArr = typeof app.screenshots === 'string' ? app.screenshots.split(',') : app.screenshots;
+            if(ssArr.length > 0 && ssArr[0].trim() !== '') {
+                ssHtml = `
+                <div class="bg-white pt-4 pb-4 mt-2 shadow-sm border-y border-slate-200">
+                    <h3 class="font-bold text-slate-800 mb-3 text-sm px-4">App Preview</h3>
+                    <div class="flex overflow-x-auto no-scrollbar gap-3 px-4 pb-2">
+                        ${ssArr.map(img => `<img src="${fixImg(img.trim())}" class="h-[260px] rounded-xl object-contain border border-slate-200 bg-slate-50 p-1">`).join('')}
+                    </div>
+                </div>`;
+            }
+        }
+
+        container.innerHTML = `
+        <div class="bg-[#f1f3f6] pb-[60px]">
+            <div class="fixed top-0 w-full max-w-[480px] p-4 flex justify-between items-center z-50 pointer-events-none">
+                <button onclick="history.back()" class="w-9 h-9 bg-white/90 backdrop-blur shadow-md rounded-full flex items-center justify-center active:scale-90 pointer-events-auto"><i class="fa-solid fa-arrow-left text-slate-800"></i></button>
+                <button onclick="toggleShare()" class="w-9 h-9 bg-white/90 backdrop-blur shadow-md rounded-full flex items-center justify-center active:scale-90 pointer-events-auto"><i class="fa-solid fa-share-nodes text-slate-800"></i></button>
+            </div>
+            <div class="bg-white w-full pt-16 pb-4 border-b border-slate-200 shadow-sm relative">
+                <div class="flex justify-center px-4"><img src="${fixImg(app.icon)}" class="w-32 h-32 object-cover rounded-2xl shadow-lg border border-slate-100 bg-slate-50 p-1"></div>
+            </div>
+            <div class="bg-white p-4 mt-2 shadow-sm border-y border-slate-200">
+                <p class="text-dynamic text-[11px] font-bold mb-1 uppercase tracking-widest">${app.category || 'App'}</p>
+                <h2 class="text-[20px] font-semibold text-slate-800 leading-snug mb-3">${app.name}</h2>
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="bg-[#388e3c] text-white text-xs font-bold px-1.5 py-0.5 rounded flex items-center">${app.rating} <i class="fa-solid fa-star text-[10px] ml-1"></i></div>
+                    <span class="text-xs font-black text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200"><i class="fa-solid fa-download text-[10px] mr-1"></i> ${app.size}</span>
+                </div>
+            </div>
+            <div class="px-4"><div class="ad-placeholder"><ins class="adsbygoogle" style="display:block" data-ad-format="auto"></ins></div></div>
+            ${ssHtml}
+            <div class="bg-white p-4 mt-2 shadow-sm border-y border-slate-200">
+                <h3 class="font-bold text-slate-800 mb-3 text-sm">Description</h3>
+                <div class="rich-text">${app.about || ''}</div>
+            </div>
+            <div class="fixed bottom-0 left-0 w-full max-w-[480px] bg-white flex shadow-[0_-2px_10px_rgba(0,0,0,0.1)] z-40 h-[60px] pb-[env(safe-area-inset-bottom)]">
+                <a href="${app.appLink}" target="_blank" class="w-full flex items-center justify-center font-bold text-white bg-dynamic active:opacity-80 text-[15px] transition"><i class="fa-solid fa-cloud-arrow-down mr-2 text-lg"></i> GET APPLICATION</a>
+            </div>
+        </div>`;
+    }
+
+    function renderBlogDetails(id, container) {
+        const blog = blogData.find(b => b.id === id);
+        if(!blog) return navigate('/');
+
+        let imgHtml = blog.image ? `<img src="${fixImg(blog.image)}" class="w-full h-56 object-cover shadow-sm">` : '';
+        
+        container.innerHTML = `
+        <div class="bg-white min-h-screen pb-[20px]">
+            <header class="bg-white/90 backdrop-blur-xl sticky top-0 z-40 p-4 flex justify-between items-center border-b border-slate-100 shadow-sm">
+                <button onclick="history.back()" class="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center active:scale-90 transition"><i class="fa-solid fa-arrow-left text-slate-700"></i></button>
+                <button onclick="toggleShare()" class="w-9 h-9 bg-blue-50 rounded-full flex items-center justify-center text-dynamic active:scale-90 transition"><i class="fa-solid fa-share-nodes"></i></button>
+            </header>
+            ${imgHtml}
+            <div class="p-5 mt-2">
+                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest"><i class="fa-regular fa-calendar text-dynamic mr-1"></i> ${blog.date || ''}</span>
+                <h1 class="text-xl font-black text-slate-900 leading-[1.3] mt-2 mb-6">${blog.title}</h1>
+                <div class="ad-placeholder mb-6"><ins class="adsbygoogle" style="display:block" data-ad-format="auto"></ins></div>
+                <div class="rich-text">${blog.content || ''}</div>
+            </div>
+        </div>`;
+    }
+
+    function renderPage(id, container) {
+        const contentKey = id.replace(/-/g, '_');
+        const content = settingsData[contentKey] || 'Content not added yet.';
+        const title = id.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+        container.innerHTML = `
+        <div class="bg-white min-h-screen">
+            <header class="bg-white/90 backdrop-blur-xl sticky top-0 z-40 p-4 flex items-center border-b border-slate-100 shadow-sm">
+                <button onclick="history.back()" class="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center mr-4 active:scale-90 transition"><i class="fa-solid fa-arrow-left text-slate-700"></i></button>
+                <h1 class="text-lg font-black text-slate-900">${title}</h1>
+            </header>
+            <div class="p-6 rich-text">${content}</div>
+        </div>`;
+    }
+
+
+    // =========================================
+    // 4. INTERACTIVE LOGIC (Filters, Search, UI)
+    // =========================================
+    function toggleDrawer() { const d = document.getElementById('navDrawer'), o = document.getElementById('drawerOverlay'); d.classList.toggle('drawer-closed'); d.classList.toggle('drawer-open'); o.classList.toggle('hidden'); setTimeout(()=>o.classList.toggle('opacity-0'), 10); }
+    function toggleShare() { const s = document.getElementById('shareSheet'), o = document.getElementById('shareOverlay'); s.classList.toggle('sheet-closed'); s.classList.toggle('sheet-open'); o.classList.toggle('hidden'); setTimeout(()=>o.classList.toggle('opacity-0'), 10); }
+    function copyToClipboard() { navigator.clipboard.writeText(window.location.href); alert('Link Copied!'); toggleShare(); }
+    function shareSocial(p) { 
+        let u = encodeURIComponent(window.location.href), t = encodeURIComponent(document.title); 
+        let su = p==='wa'?`https://api.whatsapp.com/send?text=${t}%20${u}`:(p==='fb'?`https://www.facebook.com/sharer/sharer.php?u=${u}`:`https://t.me/share/url?url=${u}&text=${t}`); 
+        window.open(su, '_blank'); toggleShare(); 
+    }
+
+    function filterCat(category) {
+        document.getElementById('category-list').classList.add('hidden');
+        const filterContainer = document.getElementById('filtered-apps');
+        const listContainer = document.getElementById('filtered-apps-list');
+        document.getElementById('filter-title').innerText = category;
+        listContainer.innerHTML = ''; 
+        
+        const filtered = storeData.filter(app => (app.category || 'Apps') === category);
+        filtered.forEach(app => {
+            listContainer.innerHTML += `
+                <div class="bg-white border border-slate-200 p-2.5 rounded-xl flex items-center justify-between shadow-sm cursor-pointer active:scale-95 transition" onclick="navigate('/app/${app.id}')">
+                    <div class="flex items-center gap-3 flex-1 min-w-0">
+                        <img src="${fixImg(app.icon)}" class="w-12 h-12 rounded-[10px] object-cover bg-slate-50 border border-slate-100 flex-shrink-0">
+                        <div class="flex-1 min-w-0 pr-2">
+                            <h3 class="font-bold text-slate-800 text-[13px] truncate mb-0.5">${app.name}</h3>
+                            <p class="text-[10px] font-bold text-slate-500 flex items-center gap-2"><span class="flex items-center"><i class="fa-solid fa-star text-yellow-500 mr-1 text-[8px]"></i> ${app.rating}</span></p>
+                        </div>
+                    </div>
+                    <span class="bg-slate-100 text-slate-900 font-black text-[10px] px-3 py-1.5 rounded shadow-sm border border-slate-200">GET</span>
+                </div>
+            `;
+        });
+        filterContainer.classList.remove('hidden');
+    }
+    function clearFilter() { document.getElementById('filtered-apps').classList.add('hidden'); document.getElementById('category-list').classList.remove('hidden'); }
+
+    function handleSearch(term) {
+        term = term.toLowerCase();
+        const resultsContainer = document.getElementById('searchResults');
+        resultsContainer.innerHTML = '';
+        if(term === '') { resultsContainer.innerHTML = '<div class="py-10 text-center"><i class="fa-solid fa-magnifying-glass text-4xl text-slate-200 mb-3"></i><p class="text-slate-400 font-medium text-xs">Start typing to search...</p></div>'; return; }
+
+        const filtered = storeData.filter(app => app.name.toLowerCase().includes(term) || (app.category || '').toLowerCase().includes(term));
+        if(filtered.length === 0) { resultsContainer.innerHTML = '<div class="py-10 text-center"><i class="fa-solid fa-ghost text-4xl text-slate-200 mb-3"></i><p class="text-slate-400 font-medium text-xs">No apps found!</p></div>'; return; }
+        
+        filtered.forEach(app => {
+            resultsContainer.innerHTML += `
+                <div class="bg-white border border-slate-200 p-2.5 rounded-xl flex items-center gap-3 cursor-pointer active:scale-95 transition shadow-sm" onclick="navigate('/app/${app.id}')">
+                    <img src="${fixImg(app.icon)}" class="w-12 h-12 rounded-[10px] object-cover bg-slate-50 border border-slate-100 flex-shrink-0">
+                    <div class="flex-1 min-w-0">
+                        <h3 class="font-bold text-slate-800 text-[13px] truncate">${app.name}</h3>
+                        <p class="text-[9px] text-dynamic font-bold uppercase tracking-widest truncate mt-0.5">${app.category || 'App'}</p>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    // SLIDER LOGIC
+    window.updateHeroDots = function() {
+        const heroTrack = document.getElementById('heroSlider');
+        if(!heroTrack) return;
+        let index = Math.round(heroTrack.scrollLeft / heroTrack.clientWidth);
+        document.querySelectorAll('.hero-dot').forEach((dot, i) => { dot.className = i === index ? 'w-5 h-1.5 rounded-full bg-dynamic hero-dot' : 'w-1.5 h-1.5 rounded-full bg-slate-300 hero-dot'; });
+    };
+
+    function initSlider() {
+        const heroTrack = document.getElementById('heroSlider');
+        if(heroTrack) {
+            if(heroAutoScrollInterval) clearInterval(heroAutoScrollInterval);
+            heroAutoScrollInterval = setInterval(() => {
+                let maxScroll = heroTrack.scrollWidth - heroTrack.clientWidth;
+                if(heroTrack.scrollLeft >= maxScroll - 10) { heroTrack.scrollTo({left: 0, behavior: 'smooth'}); } 
+                else { heroTrack.scrollBy({left: heroTrack.clientWidth, behavior: 'smooth'}); }
+            }, 3000);
+            
+            heroTrack.addEventListener('touchstart', () => clearInterval(heroAutoScrollInterval));
+            heroTrack.addEventListener('touchend', () => {
+                heroAutoScrollInterval = setInterval(() => {
+                    let maxScroll = heroTrack.scrollWidth - heroTrack.clientWidth;
+                    if(heroTrack.scrollLeft >= maxScroll - 10) { heroTrack.scrollTo({left: 0, behavior: 'smooth'}); } 
+                    else { heroTrack.scrollBy({left: heroTrack.clientWidth, behavior: 'smooth'}); }
+                }, 3000);
+            });
+        }
+    }
+
+    // BOOTSTRAP APP
+    window.onload = initApp;
+
+</script>
+</body>
+</html>
