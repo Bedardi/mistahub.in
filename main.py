@@ -5,6 +5,7 @@ import urllib.parse
 import datetime
 import time
 import random
+import textwrap
 from PIL import Image, ImageDraw, ImageFont
 
 # MoviePy for Video Editing & Music
@@ -33,9 +34,7 @@ def download_hindi_font():
     return font_path
 
 def download_auto_bg_music():
-    # Safe reliable romantic track
     music_url = "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf756.mp3?filename=romantic-guitars-112134.mp3"
-    
     music_path = "auto_bg_music.mp3"
     if not os.path.exists(music_path):
         print("🎵 Downloading copyright-free romantic background music...")
@@ -53,7 +52,6 @@ def get_romantic_content_from_gemini():
     print(f"🧠 Requesting Unique Romantic Quote & Diverse Visual Style via Gemini...")
     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    # 🎨 Visual themes ki list taaki har baar bilkul alag background generate ho
     themes = [
         "Aesthetic romantic couple silhouette sitting near a window with rain drops, cinematic lighting, 8k",
         "Cozy bedroom with warm fairy lights, romantic couple hugging, cinematic mood, 8k",
@@ -63,12 +61,10 @@ def get_romantic_content_from_gemini():
     ]
     chosen_theme = random.choice(themes)
 
-    # 🎨 Text color combinations taaki har baar alag color/stroke combination mile
     color_palettes = [
-        {"text": "#FFFFFF", "stroke": "#000000"}, # White text, Black outline
+        {"text": "#FFFFFF", "stroke": "#000000"}, # White text, Black outline (Classic Aesthetic)
         {"text": "#FFF0F5", "stroke": "#FF1493"}, # Lavender Blush text, Deep Pink outline
-        {"text": "#FFD700", "stroke": "#4A0033"}, # Gold text, Deep Purple outline
-        {"text": "#00FFFF", "stroke": "#00008B"}  # Cyan text, Dark Blue outline
+        {"text": "#FFD700", "stroke": "#4A0033"}  # Gold text, Deep Purple outline
     ]
     chosen_palette = random.choice(color_palettes)
     
@@ -76,23 +72,23 @@ def get_romantic_content_from_gemini():
     You are an expert human content creator for a viral Romantic Love Status YouTube channel.
     Current timestamp: {current_time}
     
-    Task: Create a completely unique, highly emotional, heart-touching 2-line Hindi romantic quote or shayari in pure Devanagari script.
+    Task: Create a completely unique, highly emotional, heart-touching short Hindi romantic quote or shayari in pure Devanagari script.
     Visual Scene Direction to use for image prompt: {chosen_theme}
     
     IMPORTANT RULES: 
     1. Write ONLY in pure Devanagari Hindi script. No emojis inside the quote text.
-    2. Keep sentences short, poetic, and deeply touching.
+    2. Keep the quote VERY short (maximum 10-15 words total) so it fits beautifully on screen.
     
     You must output ONLY a valid JSON object. Do not wrap it in markdown.
     Structure exactly like this:
     {{
       "metadata": {{
-        "title": "Dil ki baatein jo labon par aa gayi ❤️ #shorts",
+        "title": "Dil ki baatein ❤️ #shorts",
         "description": "Tag your love. Beautiful romantic feelings and status. Subscribe for daily love quotes.",
         "tags": ["love", "romance", "shayari", "couple", "shorts", "status"]
       }},
       "image_prompt": "{chosen_theme}, highly detailed, gorgeous color grading, NO text, NO watermarks",
-      "quote_text": "तेरी in ankhon mein,\\nmera poora sansaar basta hai।",
+      "quote_text": "तेरी आँखों में,\\nमेरा पूरा संसार बसता है।",
       "text_color": "{chosen_palette['text']}",
       "stroke_color": "{chosen_palette['stroke']}"
     }}
@@ -123,7 +119,6 @@ def get_romantic_content_from_gemini():
                 
             json_text = data['candidates'][0]['content']['parts'][0]['text']
             
-            # JSON Cleaner
             json_text = json_text.strip()
             if json_text.startswith("```json"):
                 json_text = json_text[7:]
@@ -158,22 +153,30 @@ def generate_image_free_api(image_prompt):
     return None
 
 def create_static_text_image(text, font_path, filename, text_color, stroke_color):
-    print(f"✍️ Drawing Text with Dynamic Colors ({text_color} / {stroke_color})...")
+    print(f"✍️ Drawing Text with Auto-Wrapping...")
     w, h = (1080, 1920)
     img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     
-    font_size = 70
+    # 🛠️ FONT SIZE CHOTA KIYA (Taaki Instagram reel jaisa decent lage)
+    font_size = 65
     try: 
         font = ImageFont.truetype(font_path, font_size)
     except: 
         font = ImageFont.load_default()
 
-    lines = text.split('\n')
-    total_height = len(lines) * (font_size + 30)
+    # 🛠️ AUTO-WRAPPING LOGIC: Agar line lambi hai toh use center mein break karega
+    wrapped_lines = []
+    # Agar Gemini ne pehle se \n nahi bheja, toh khud tod denge (max 20 characters per line)
+    raw_lines = text.replace('\\n', '\n').split('\n')
+    for raw_line in raw_lines:
+        wrapped_lines.extend(textwrap.wrap(raw_line, width=22))
+
+    # Calculate total height for perfect vertical centering
+    total_height = len(wrapped_lines) * (font_size + 25)
     y_text = (h - total_height) // 2
 
-    for line in lines:
+    for line in wrapped_lines:
         line = line.strip()
         try:
             bbox = draw.textbbox((0, 0), line, font=font)
@@ -183,9 +186,9 @@ def create_static_text_image(text, font_path, filename, text_color, stroke_color
             
         x_text = (w - line_w) // 2
         
-        # Draw dynamic text color and outline chosen by AI
-        draw.text((x_text, y_text), line, font=font, fill=text_color, stroke_width=6, stroke_fill=stroke_color)
-        y_text += (font_size + 30)
+        # Draw dynamic text color and outline
+        draw.text((x_text, y_text), line, font=font, fill=text_color, stroke_width=4, stroke_fill=stroke_color)
+        y_text += (font_size + 25)
 
     img.save(filename)
     return filename
@@ -238,7 +241,7 @@ def main():
     video_duration = 8.0
     video_w, video_h = (1080, 1920)
 
-    # 1. Background image with random subtle zoom scale direction
+    # 1. Background image with zoom effect
     zoom_factor = random.choice([0.012, 0.015, 0.018])
     bg_clip = ImageClip(bg_image_path).resize(width=video_w, height=video_h)
     bg_clip = bg_clip.resize(lambda t: 1 + zoom_factor * t).set_position('center').set_duration(video_duration)
@@ -246,7 +249,7 @@ def main():
     dark_overlay = ColorClip(size=(video_w, video_h), color=(10,10,10)).set_opacity(0.45).set_duration(video_duration)
     background_final = CompositeVideoClip([bg_clip, dark_overlay])
 
-    # 2. Text overlay with dynamic colors
+    # 2. Text overlay with auto-wrapping
     text_img_file = "static_romantic_text.png"
     text_color = data.get("text_color", "#FFFFFF")
     stroke_color = data.get("stroke_color", "#000000")
@@ -281,6 +284,5 @@ def main():
     upload_video_to_youtube(final_video_name, data['metadata']['title'], data['metadata']['description'], data['metadata']['tags'])
     print("✅ Done! Human-like Dynamic Video Uploaded Successfully!")
 
-# Yahan par typo tha, "__main__" lagana zaroori hai tabhi python file properly run karegi.
 if __name__ == "__main__":
     main()
