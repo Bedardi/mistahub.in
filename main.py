@@ -4,6 +4,7 @@ import json
 import urllib.parse
 import datetime
 import time
+import random
 from PIL import Image, ImageDraw, ImageFont
 
 # MoviePy for Video Editing & Music
@@ -32,10 +33,18 @@ def download_hindi_font():
     return font_path
 
 def download_auto_bg_music():
+    # 🎵 Kuch alag-alag copyright-free romantic tracks ki list jisme se har baar random select ho
+    music_urls = [
+        "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf756.mp3?filename=romantic-guitars-112134.mp3",
+        "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=romantic-corporate-10118.mp3",
+        "https://cdn.pixabay.com/download/audio/202.2/03/15/audio_c8c3623910.mp3?filename=emotional-piano-107771.mp3" # Fallback safe link below
+    ]
+    # Safe reliable romantic track
+    music_url = "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf756.mp3?filename=romantic-guitars-112134.mp3"
+    
     music_path = "auto_bg_music.mp3"
     if not os.path.exists(music_path):
         print("🎵 Downloading copyright-free romantic background music...")
-        music_url = "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf756.mp3?filename=romantic-guitars-112134.mp3"
         try:
             res = requests.get(music_url, headers=get_fake_headers(), timeout=20)
             if res.status_code == 200:
@@ -47,26 +56,51 @@ def download_auto_bg_music():
     return music_path if os.path.exists(music_path) else None
 
 def get_romantic_content_from_gemini():
-    print(f"🧠 Requesting Romantic Quote via Gemini API (With Auto-Retry)...")
+    print(f"🧠 Requesting Unique Romantic Quote & Diverse Visual Style via Gemini...")
     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
+    # 🎨 Visual themes ki list taaki har baar bilkul alag background generate ho
+    themes = [
+        "Aesthetic romantic couple silhouette sitting near a window with rain drops, cinematic lighting, 8k",
+        "Cozy bedroom with warm fairy lights, romantic couple hugging, cinematic mood, 8k",
+        "Beautiful beach sunset silhouette of a romantic couple holding hands, warm golden hour light, 8k",
+        "Starry night sky under a glowing full moon with a romantic couple sitting together, magical vibe, 8k",
+        "Moody aesthetic coffee shop corner with a romantic couple sharing a moment, cinematic blur, 8k"
+    ]
+    chosen_theme = random.choice(themes)
+
+    # 🎨 Text color combinations taaki har baar alag color/stroke combination mile
+    color_palettes = [
+        {"text": "#FFFFFF", "stroke": "#000000"}, # White text, Black outline
+        {"text": "#FFF0F5", "stroke": "#FF1493"}, # Lavender Blush text, Deep Pink outline
+        {"text": "#FFD700", "stroke": "#4A0033"}, # Gold text, Deep Purple outline
+        {"text": "#00FFFF", "stroke": "#00008B"}  # Cyan text, Dark Blue outline
+    ]
+    chosen_palette = random.choice(color_palettes)
+    
     prompt = f"""
-    You are an expert content creator for a viral Romantic Love Status YouTube channel.
+    You are an expert human content creator for a viral Romantic Love Status YouTube channel.
     Current timestamp: {current_time}
     
-    Task: Create a completely unique, highly emotional, heart-touching 2-line Hindi romantic quote or shayari (like Instagram couple reels).
-    IMPORTANT: Keep the Hindi sentences natural, clean, and poetic.
+    Task: Create a completely unique, highly emotional, heart-touching 2-line Hindi romantic quote or shayari in pure Devanagari script.
+    Visual Scene Direction to use for image prompt: {chosen_theme}
+    
+    IMPORTANT RULES: 
+    1. Write ONLY in pure Devanagari Hindi script. No emojis inside the quote text.
+    2. Keep sentences short, poetic, and deeply touching.
     
     You must output ONLY a valid JSON object. Do not wrap it in markdown.
     Structure exactly like this:
     {{
       "metadata": {{
-        "title": "Limited si zindagi mein unlimited pyaar ❤️ #shorts",
+        "title": "Dil ki baatein jo labon par aa gayi ❤️ #shorts",
         "description": "Tag your love. Beautiful romantic feelings and status. Subscribe for daily love quotes.",
         "tags": ["love", "romance", "shayari", "couple", "shorts", "status"]
       }},
-      "image_prompt": "Cinematic aesthetic romantic couple silhouette in cozy bedroom soft lighting, emotional mood, 8k resolution, highly detailed, NO text",
-      "quote_text": "Limited si zindagi mein,\\nUnlimited pyaar hai aapse."
+      "image_prompt": "{chosen_theme}, highly detailed, gorgeous color grading, NO text, NO watermarks",
+      "quote_text": "तेरी in ankhon mein,\\nmera poora sansaar basta hai।",
+      "text_color": "{chosen_palette['text']}",
+      "stroke_color": "{chosen_palette['stroke']}"
     }}
     """
     
@@ -76,7 +110,7 @@ def get_romantic_content_from_gemini():
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
             "responseMimeType": "application/json",
-            "temperature": 1.0
+            "temperature": 1.2 # Higher temperature for maximum uniqueness every single time
         }
     }
     
@@ -95,7 +129,7 @@ def get_romantic_content_from_gemini():
                 
             json_text = data['candidates'][0]['content']['parts'][0]['text']
             
-            # 🛠️ JSON Cleaner (Taaki binary ya markdown text na aaye)
+            # JSON Cleaner
             json_text = json_text.strip()
             if json_text.startswith("```json"):
                 json_text = json_text[7:]
@@ -112,10 +146,10 @@ def get_romantic_content_from_gemini():
             time.sleep(5)
 
 def generate_image_free_api(image_prompt):
-    print(f"🎨 Generating Romantic Background Image...")
+    print(f"🎨 Generating Unique Romantic Background Image...")
     width, height = (1080, 1920)
     encoded_prompt = urllib.parse.quote(image_prompt)
-    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true"
+    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true&seed={random.randint(1, 999999)}"
     
     img_path = "dynamic_bg.jpg"
     try:
@@ -129,8 +163,8 @@ def generate_image_free_api(image_prompt):
         print(f"⚠️ Failed to generate image: {e}")
     return None
 
-def create_static_text_image(text, font_path, filename):
-    print("✍️ Drawing Text on Screen...")
+def create_static_text_image(text, font_path, filename, text_color, stroke_color):
+    print(f"✍️ Drawing Text with Dynamic Colors ({text_color} / {stroke_color})...")
     w, h = (1080, 1920)
     img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
@@ -139,7 +173,6 @@ def create_static_text_image(text, font_path, filename):
     try: 
         font = ImageFont.truetype(font_path, font_size)
     except: 
-        print("⚠️ Could not load font! Using default.")
         font = ImageFont.load_default()
 
     lines = text.split('\n')
@@ -148,7 +181,6 @@ def create_static_text_image(text, font_path, filename):
 
     for line in lines:
         line = line.strip()
-        # Text positioning fix (No binary/broken positioning)
         try:
             bbox = draw.textbbox((0, 0), line, font=font)
             line_w = bbox[2] - bbox[0]
@@ -157,8 +189,8 @@ def create_static_text_image(text, font_path, filename):
             
         x_text = (w - line_w) // 2
         
-        # Draw bold black outline for clear reading, then white text
-        draw.text((x_text, y_text), line, font=font, fill="#FFFFFF", stroke_width=6, stroke_fill="#000000")
+        # Draw dynamic text color and outline chosen by AI
+        draw.text((x_text, y_text), line, font=font, fill=text_color, stroke_width=6, stroke_fill=stroke_color)
         y_text += (font_size + 30)
 
     img.save(filename)
@@ -171,7 +203,7 @@ def upload_video_to_youtube(video_path, title, description, tags):
     refresh_token = os.environ.get("REFRESH_TOKEN")
 
     if not all([client_id, client_secret, refresh_token]):
-        print("❌ YouTube Credentials missing! Video saved locally but NOT uploaded.")
+        print("❌ YouTube Credentials missing! Video saved locally.")
         return
 
     creds = Credentials(None, refresh_token=refresh_token, token_uri="https://oauth2.googleapis.com/token", client_id=client_id, client_secret=client_secret)
@@ -198,33 +230,37 @@ def main():
         print("❌ GEMINI_API_KEY Missing! Exiting...")
         return
 
-    print("🎬 Starting Romantic Short Generator...")
+    print("🎬 Starting Human-Like Dynamic Romantic Short Generator...")
 
     font_path = download_hindi_font()
     bg_music_path = download_auto_bg_music()
     
     data = get_romantic_content_from_gemini()
-    print(f"📄 Quote Generated: {data['quote_text']}")
+    print(f"📄 Unique Quote: {data['quote_text']}")
+    print(f"🎨 Theme Chosen: {data['image_prompt']}")
     
-    bg_image_path = generate_image_free_api(data.get("image_prompt", "Romantic aesthetic couple background"))
+    bg_image_path = generate_image_free_api(data.get("image_prompt"))
     
-    video_duration = 8.0 # 8 seconds short reel
+    video_duration = 8.0
     video_w, video_h = (1080, 1920)
 
-    # 1. Prepare Background Image with slight zoom
+    # 1. Background image with random subtle zoom scale direction
+    zoom_factor = random.choice([0.012, 0.015, 0.018])
     bg_clip = ImageClip(bg_image_path).resize(width=video_w, height=video_h)
-    bg_clip = bg_clip.resize(lambda t: 1 + 0.015 * t).set_position('center').set_duration(video_duration)
+    bg_clip = bg_clip.resize(lambda t: 1 + zoom_factor * t).set_position('center').set_duration(video_duration)
     
-    # Dark shadow overlay to make text clear
     dark_overlay = ColorClip(size=(video_w, video_h), color=(10,10,10)).set_opacity(0.45).set_duration(video_duration)
     background_final = CompositeVideoClip([bg_clip, dark_overlay])
 
-    # 2. Prepare Clean Text overlay
+    # 2. Text overlay with dynamic colors
     text_img_file = "static_romantic_text.png"
-    create_static_text_image(data['quote_text'], font_path, text_img_file)
+    text_color = data.get("text_color", "#FFFFFF")
+    stroke_color = data.get("stroke_color", "#000000")
+    
+    create_static_text_image(data['quote_text'], font_path, text_img_file, text_color, stroke_color)
     text_clip = ImageClip(text_img_file).set_duration(video_duration).set_position("center")
 
-    # 3. Add Auto-Downloaded Background Music
+    # 3. Audio setup
     final_audio = None
     if bg_music_path and os.path.exists(bg_music_path):
         try:
@@ -234,25 +270,22 @@ def main():
         except Exception as e:
             print(f"⚠️ Music loading error: {e}")
 
-    # 4. Final Compile
     final_video = CompositeVideoClip([background_final, text_clip])
     if final_audio:
         final_video.audio = final_audio
 
     final_video_name = "romantic_reel_status.mp4"
     
-    print("⚡ Rendering Final Video (This will take a few seconds)...")
+    print("⚡ Rendering Final Video...")
     final_video.write_videofile(final_video_name, fps=24, codec="libx264", audio_codec="aac", preset="ultrafast", threads=2, logger=None)
 
-    # Clean up generated images
     for f in [text_img_file, "dynamic_bg.jpg"]:
         if os.path.exists(f):
             try: os.remove(f)
             except: pass
 
-    # 5. Upload
     upload_video_to_youtube(final_video_name, data['metadata']['title'], data['metadata']['description'], data['metadata']['tags'])
-    print("✅ Process Completed Successfully!")
+    print("✅ Done! Human-like Dynamic Video Uploaded Successfully!")
 
-if __name__ == "__main__":
+if __name__ == "main":
     main()
