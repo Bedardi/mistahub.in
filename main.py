@@ -1,15 +1,13 @@
 import os
 import requests
 import json
-import textwrap
 import random
 import urllib.parse
 from PIL import Image, ImageDraw, ImageFont
 import datetime
 
-# MoviePy for Video Editing
+# MoviePy for Video Editing & Music
 from moviepy.editor import ImageClip, AudioFileClip, ColorClip, CompositeVideoClip
-from moviepy.audio.AudioClip import CompositeAudioClip
 from moviepy.audio.fx.all import volumex
 
 # YouTube API imports
@@ -31,7 +29,6 @@ def download_hindi_font():
         with open(font_path, 'wb') as f: f.write(res.content)
     return font_path
 
-# 🎵 Automatically download copyright-free romantic music
 def download_auto_bg_music():
     music_path = "auto_bg_music.mp3"
     if not os.path.exists(music_path):
@@ -109,7 +106,6 @@ def generate_image_free_api(image_prompt):
         print(f"⚠️ Failed to generate image: {e}")
     return None
 
-# Static text image par text burn karne ke liye function
 def create_static_text_image(text, font_path, filename):
     w, h = (1080, 1920)
     img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
@@ -126,7 +122,6 @@ def create_static_text_image(text, font_path, filename):
     for line in lines:
         try: line_w = font.getlength(line)
         except: line_w = len(line) * (font_size / 2)
-        # Mast romantic style: White text with pink/magenta glowing stroke
         draw.text(((w - line_w) / 2, y_text), line, font=font, fill="#FFFFFF", stroke_width=6, stroke_fill="#FF1493")
         y_text += (font_size + 25)
 
@@ -167,7 +162,7 @@ def main():
         print("❌ GEMINI_API_KEY Missing! Exiting...")
         return
 
-    print("🎲 Starting Romantic Short Generator (No TTS, Static Text, Background Music)...")
+    print("🎲 Starting Romantic Short Generator (Static Text + Background Music)...")
 
     font_path = download_hindi_font()
     bg_music_path = download_auto_bg_music()
@@ -177,34 +172,28 @@ def main():
     
     bg_image_path = generate_image_free_api(data.get("image_prompt", "Romantic aesthetic couple background"))
     
-    # Video ki total duration exact 8 seconds rakhi hai (jo 6-10 sec ki limit mein fit hai)
     video_duration = 8.0
     video_w, video_h = (1080, 1920)
 
-    # 1. Background Image Clip with subtle zoom effect
     bg_clip = ImageClip(bg_image_path).resize(width=video_w, height=video_h)
     bg_clip = bg_clip.resize(lambda t: 1 + 0.015 * t).set_position('center').set_duration(video_duration)
     
-    # Romantic dark pinkish/purple shadow overlay taaki text clear aur mast dikhe
     dark_overlay = ColorClip(size=(video_w, video_h), color=(15,0,15)).set_opacity(0.45).set_duration(video_duration)
     background_final = CompositeVideoClip([bg_clip, dark_overlay])
 
-    # 2. Static Text Image Clip
     text_img_file = "static_romantic_text.png"
     create_static_text_image(data['quote_text'], font_path, text_img_file)
     text_clip = ImageClip(text_img_file).set_duration(video_duration).set_position("center")
 
-    # 3. Background Music Clip (Trimmed to 8 seconds)
     final_audio = None
     if bg_music_path and os.path.exists(bg_music_path):
         try:
             bg_music = AudioFileClip(bg_music_path).subclip(0, video_duration)
-            bg_music = volumex(bg_music, 0.3) # Perfect background volume level
+            bg_music = volumex(bg_music, 0.3)
             final_audio = bg_music
         except Exception as e:
             print(f"⚠️ Music loading error: {e}")
 
-    # Combine video layers
     final_video = CompositeVideoClip([background_final, text_clip])
     if final_audio:
         final_video.audio = final_audio
@@ -214,13 +203,11 @@ def main():
     print("⚡ Rendering Final Video...")
     final_video.write_videofile(final_video_name, fps=24, codec="libx264", audio_codec="aac", preset="ultrafast", threads=2, logger=None)
 
-    # Cleanup temporary files
     for f in [text_img_file, "dynamic_bg.jpg"]:
         if os.path.exists(f):
             try: os.remove(f)
             except: pass
 
-    # Upload to YouTube
     upload_video_to_youtube(final_video_name, data['metadata']['title'], data['metadata']['description'], data['metadata']['tags'])
     print("✅ Done! Romantic Video Uploaded Successfully!")
 
