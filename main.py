@@ -2,17 +2,15 @@ import os
 import requests
 import json
 import textwrap
-import base64
 import random
 import urllib.parse
 from PIL import Image, ImageDraw, ImageFont
-import numpy as np
 import datetime
-import asyncio
-import edge_tts
 
 # MoviePy for Video Editing
-from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips, ColorClip, CompositeVideoClip
+from moviepy.editor import ImageClip, AudioFileClip, ColorClip, CompositeVideoClip
+from moviepy.audio.AudioClip import CompositeAudioClip
+from moviepy.audio.fx.all import volumex
 
 # YouTube API imports
 from google.oauth2.credentials import Credentials
@@ -33,41 +31,44 @@ def download_hindi_font():
         with open(font_path, 'wb') as f: f.write(res.content)
     return font_path
 
-def get_everything_from_gemini(video_type):
-    print(f"🧠 Requesting {video_type.upper()} Blueprint via Gemini 2.5 Flash REST API...")
-    
+# 🎵 Automatically download copyright-free romantic music
+def download_auto_bg_music():
+    music_path = "auto_bg_music.mp3"
+    if not os.path.exists(music_path):
+        print("🎵 Downloading copyright-free romantic background music...")
+        music_url = "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf756.mp3?filename=romantic-guitars-112134.mp3"
+        try:
+            res = requests.get(music_url, headers=get_fake_headers(), timeout=20)
+            if res.status_code == 200:
+                with open(music_path, 'wb') as f:
+                    f.write(res.content)
+                print("✅ Background music downloaded successfully!")
+        except Exception as e:
+            print(f"⚠️ Could not download background music: {e}")
+    return music_path if os.path.exists(music_path) else None
+
+def get_romantic_content_from_gemini():
+    print(f"🧠 Requesting Romantic Quote via Gemini 2.5 Flash...")
     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    line_count_instruction = "4 lines" if video_type == "short" else "10 to 12 lines"
     
     prompt = f"""
-    You are an expert AI Video Director for a Hindu Devotional (Bhakti) YouTube channel.
-    Current timestamp to ensure uniqueness: {current_time}
+    You are an expert content creator for a viral Romantic Love Status YouTube channel.
+    Current timestamp: {current_time}
     
-    Task: Create a completely unique, NEVER-SEEN-BEFORE {line_count_instruction} highly emotional Hindi Bhakti video script. 
-    You randomly choose the deity (e.g., Mahadev, Krishna, Hanuman, Ram). 
-    IMPORTANT: Write the Hindi text with commas (,) so the voice pauses naturally.
+    Task: Create a completely unique, highly emotional, heart-touching 2-line Hindi romantic quote or shayari (like Instagram couple reels).
     
     You must output ONLY a valid JSON object.
     Structure exactly like this:
     {{
       "metadata": {{
-        "title": "Catchy Devotional Title Here 🔱",
-        "description": "Deep words that touch the soul. Subscribe for daily Bhakti videos.",
-        "tags": ["bhakti", "sanatan", "motivation", "status"]
+        "title": "Limited si zindagi mein unlimited pyaar ❤️ #shorts",
+        "description": "Tag your love. Beautiful romantic feelings and status. Subscribe for daily love quotes.",
+        "tags": ["love", "romance", "shayari", "couple", "shorts", "status"]
       }},
-      "image_prompt": "Ultra realistic, cinematic background of the chosen deity, 8k resolution, highly detailed, beautiful lighting, NO text, NO watermarks",
-      "style": {{
-        "background_color_fallback": "#1A0000"
-      }},
-      "lines": [
-        {{
-          "text": "hindi text with commas for pause",
-          "text_color": "#FFFFFF",
-          "stroke_color": "#FF0000"
-        }}
-      ]
+      "image_prompt": "Cinematic aesthetic romantic couple silhouette in cozy bedroom soft lighting, emotional mood, 8k resolution, highly detailed, NO text, NO watermarks",
+      "quote_text": "Limited si zindagi mein,\nUnlimited pyaar hai aapse."
     }}
-    Rules: Keep Hindi text emotional. DO NOT include extra markdown outside the JSON.
+    Rules: Keep Hindi text deeply emotional. DO NOT include extra markdown outside the JSON.
     """
     
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
@@ -83,18 +84,16 @@ def get_everything_from_gemini(video_type):
     try:
         response = requests.post(url, headers=headers, json=payload)
         data = response.json()
-        
         if "error" in data:
              raise Exception(f"API returned an error: {data['error']}")
-             
         json_text = data['candidates'][0]['content']['parts'][0]['text']
         return json.loads(json_text)
     except Exception as e:
         raise Exception(f"❌ Gemini Text API Failed: {e}")
 
-def generate_image_free_api(image_prompt, video_type):
-    print(f"🎨 Generating Image via Free AI for prompt: '{image_prompt}'...")
-    width, height = (1080, 1920) if video_type == "short" else (1920, 1080)
+def generate_image_free_api(image_prompt):
+    print(f"🎨 Generating Romantic Background Image...")
+    width, height = (1080, 1920)
     encoded_prompt = urllib.parse.quote(image_prompt)
     image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true"
     
@@ -105,45 +104,36 @@ def generate_image_free_api(image_prompt, video_type):
             with open(img_path, 'wb') as f:
                 for chunk in response.iter_content(1024):
                     f.write(chunk)
-            print("✅ Background Image generated successfully!")
             return img_path
     except Exception as e:
         print(f"⚠️ Failed to generate image: {e}")
     return None
 
-def hex_to_rgb(hex_color):
-    hex_color = hex_color.lstrip('#')
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-
-def create_dynamic_text_image(text, font_path, filename, text_color, stroke_color, font_size, video_type):
-    w, h = (1080, 1920) if video_type == "short" else (1920, 1080)
-    wrap_width = 18 if video_type == "short" else 40
-    
+# Static text image par text burn karne ke liye function
+def create_static_text_image(text, font_path, filename):
+    w, h = (1080, 1920)
     img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
+    
+    font_size = 75
     try: font = ImageFont.truetype(font_path, font_size)
     except: font = ImageFont.load_default()
 
-    lines = textwrap.wrap(text, width=wrap_width)
-    total_height = len(lines) * (font_size + 20)
+    lines = text.split('\n')
+    total_height = len(lines) * (font_size + 25)
     y_text = (h - total_height) // 2
 
     for line in lines:
         try: line_w = font.getlength(line)
         except: line_w = len(line) * (font_size / 2)
-        draw.text(((w - line_w) / 2, y_text), line, font=font, fill=text_color, stroke_width=5, stroke_fill=stroke_color)
-        y_text += (font_size + 20)
+        # Mast romantic style: White text with pink/magenta glowing stroke
+        draw.text(((w - line_w) / 2, y_text), line, font=font, fill="#FFFFFF", stroke_width=6, stroke_fill="#FF1493")
+        y_text += (font_size + 25)
 
     img.save(filename)
     return filename
 
-# 🔴 YAHAN edge-tts KA USE HUA HAI (Zabardast Viral Voice ke liye)
-async def generate_audio_edge(text, filename):
-    # 'hi-IN-MadhurNeural' ekdum uss video jaisi deep aur fast storytelling aawaz dega
-    communicate = edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+5%", pitch="+0Hz")
-    await communicate.save(filename)
-
-def upload_video_to_youtube(video_path, title, description, tags, video_type):
+def upload_video_to_youtube(video_path, title, description, tags):
     print(f"\n🚀 Uploading to YouTube: {title}")
     client_id = os.environ.get("CLIENT_ID")
     client_secret = os.environ.get("CLIENT_SECRET")
@@ -156,7 +146,7 @@ def upload_video_to_youtube(video_path, title, description, tags, video_type):
     creds = Credentials(None, refresh_token=refresh_token, token_uri="https://oauth2.googleapis.com/token", client_id=client_id, client_secret=client_secret)
     youtube = build("youtube", "v3", credentials=creds)
     
-    if video_type == "short" and "#shorts" not in title.lower():
+    if "#shorts" not in title.lower():
         title += " #shorts"
         if "shorts" not in tags: tags.append("shorts")
 
@@ -168,8 +158,7 @@ def upload_video_to_youtube(video_path, title, description, tags, video_type):
     try:
         req = youtube.videos().insert(part="snippet,status", body=body, media_body=MediaFileUpload(video_path, chunksize=-1, resumable=True))
         response = req.execute()
-        url_prefix = "shorts/" if video_type == "short" else "watch?v="
-        print(f"🎉 SUCCESS! Video Live at: https://youtube.com/{url_prefix}{response['id']}")
+        print(f"🎉 SUCCESS! Video Live at: https://youtube.com/shorts/{response['id']}")
     except Exception as e:
         print(f"❌ Upload Failed: {e}")
 
@@ -178,69 +167,62 @@ def main():
         print("❌ GEMINI_API_KEY Missing! Exiting...")
         return
 
-    video_type = random.choice(["short", "long"])
-    print(f"🎲 AI Decided to make a: {video_type.upper()} VIDEO")
+    print("🎲 Starting Romantic Short Generator (No TTS, Static Text, Background Music)...")
 
     font_path = download_hindi_font()
+    bg_music_path = download_auto_bg_music()
     
-    data = get_everything_from_gemini(video_type)
+    data = get_romantic_content_from_gemini()
     print(f"🎬 Title: {data['metadata']['title']}")
     
-    image_prompt = data.get("image_prompt", "Lord Shiva meditating in Himalayas cinematic, no text")
-    bg_image_path = generate_image_free_api(image_prompt, video_type)
+    bg_image_path = generate_image_free_api(data.get("image_prompt", "Romantic aesthetic couple background"))
     
-    video_w, video_h = (1080, 1920) if video_type == "short" else (1920, 1080)
-    font_size = 80 if video_type == "short" else 70
-    
-    video_clips = []
-    
-    for i, line in enumerate(data['lines']):
-        print(f"⚙️ Rendering Line {i+1}...")
-        
-        audio_file = f"line_{i}.mp3"
-        
-        # 🔴 BADA FIX: Yahan 'asyncio.run' ka use karke edge-tts call kiya hai
-        asyncio.run(generate_audio_edge(line['text'], audio_file))
-        
-        audio_clip = AudioFileClip(audio_file)
-        # Ek second ka thehrav jisse video natural lage
-        scene_dur = audio_clip.duration + 1.0 
-        
-        img_file = f"text_{i}.png"
-        create_dynamic_text_image(line['text'], font_path, img_file, line['text_color'], line['stroke_color'], font_size, video_type)
-        
-        animated_text_clip = ImageClip(img_file).set_duration(scene_dur).crossfadein(0.8)
-        animated_text_clip = animated_text_clip.set_audio(audio_clip)
-        
-        video_clips.append(animated_text_clip)
+    # Video ki total duration exact 8 seconds rakhi hai (jo 6-10 sec ki limit mein fit hai)
+    video_duration = 8.0
+    video_w, video_h = (1080, 1920)
 
-    print("🎞️ Stitching all scenes...")
-    final_text_sequence = concatenate_videoclips(video_clips, method="compose")
+    # 1. Background Image Clip with subtle zoom effect
+    bg_clip = ImageClip(bg_image_path).resize(width=video_w, height=video_h)
+    bg_clip = bg_clip.resize(lambda t: 1 + 0.015 * t).set_position('center').set_duration(video_duration)
     
-    if bg_image_path and os.path.exists(bg_image_path):
-        bg_clip = ImageClip(bg_image_path).resize(width=video_w, height=video_h)
-        bg_clip = bg_clip.resize(lambda t: 1 + 0.015 * t).set_position('center').set_duration(final_text_sequence.duration)
-        dark_overlay = ColorClip(size=(video_w, video_h), color=(0,0,0)).set_opacity(0.4).set_duration(final_text_sequence.duration)
-        bg_clip = CompositeVideoClip([bg_clip, dark_overlay])
-    else:
-        bg_rgb = hex_to_rgb(data['style'].get("background_color_fallback", "#1A0000"))
-        bg_clip = ColorClip(size=(video_w, video_h), color=bg_rgb).set_duration(final_text_sequence.duration)
-    
-    final_video = CompositeVideoClip([bg_clip, final_text_sequence.set_position("center")])
-    final_video.audio = final_text_sequence.audio 
-    
-    final_video_name = f"automated_bhakti_{video_type}.mp4"
+    # Romantic dark pinkish/purple shadow overlay taaki text clear aur mast dikhe
+    dark_overlay = ColorClip(size=(video_w, video_h), color=(15,0,15)).set_opacity(0.45).set_duration(video_duration)
+    background_final = CompositeVideoClip([bg_clip, dark_overlay])
+
+    # 2. Static Text Image Clip
+    text_img_file = "static_romantic_text.png"
+    create_static_text_image(data['quote_text'], font_path, text_img_file)
+    text_clip = ImageClip(text_img_file).set_duration(video_duration).set_position("center")
+
+    # 3. Background Music Clip (Trimmed to 8 seconds)
+    final_audio = None
+    if bg_music_path and os.path.exists(bg_music_path):
+        try:
+            bg_music = AudioFileClip(bg_music_path).subclip(0, video_duration)
+            bg_music = volumex(bg_music, 0.3) # Perfect background volume level
+            final_audio = bg_music
+        except Exception as e:
+            print(f"⚠️ Music loading error: {e}")
+
+    # Combine video layers
+    final_video = CompositeVideoClip([background_final, text_clip])
+    if final_audio:
+        final_video.audio = final_audio
+
+    final_video_name = "romantic_reel_status.mp4"
     
     print("⚡ Rendering Final Video...")
     final_video.write_videofile(final_video_name, fps=24, codec="libx264", audio_codec="aac", preset="ultrafast", threads=2, logger=None)
 
-    for f in os.listdir("."):
-        if f.endswith(".png") or (f.startswith("line_") and f.endswith(".mp3")) or f == "dynamic_bg.jpg":
+    # Cleanup temporary files
+    for f in [text_img_file, "dynamic_bg.jpg"]:
+        if os.path.exists(f):
             try: os.remove(f)
             except: pass
 
-    upload_video_to_youtube(final_video_name, data['metadata']['title'], data['metadata']['description'], data['metadata']['tags'], video_type)
-    print("✅ Video Uploaded! Workflow Complete!")
+    # Upload to YouTube
+    upload_video_to_youtube(final_video_name, data['metadata']['title'], data['metadata']['description'], data['metadata']['tags'])
+    print("✅ Done! Romantic Video Uploaded Successfully!")
 
 if __name__ == "__main__":
     main()
