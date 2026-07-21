@@ -33,12 +33,6 @@ def download_hindi_font():
     return font_path
 
 def download_auto_bg_music():
-    # 🎵 Kuch alag-alag copyright-free romantic tracks ki list jisme se har baar random select ho
-    music_urls = [
-        "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf756.mp3?filename=romantic-guitars-112134.mp3",
-        "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=romantic-corporate-10118.mp3",
-        "https://cdn.pixabay.com/download/audio/202.2/03/15/audio_c8c3623910.mp3?filename=emotional-piano-107771.mp3" # Fallback safe link below
-    ]
     # Safe reliable romantic track
     music_url = "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf756.mp3?filename=romantic-guitars-112134.mp3"
     
@@ -110,7 +104,7 @@ def get_romantic_content_from_gemini():
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
             "responseMimeType": "application/json",
-            "temperature": 1.2 # Higher temperature for maximum uniqueness every single time
+            "temperature": 1.2
         }
     }
     
@@ -287,5 +281,6 @@ def main():
     upload_video_to_youtube(final_video_name, data['metadata']['title'], data['metadata']['description'], data['metadata']['tags'])
     print("✅ Done! Human-like Dynamic Video Uploaded Successfully!")
 
-if __name__ == "main":
+# Yahan par typo tha, "__main__" lagana zaroori hai tabhi python file properly run karegi.
+if __name__ == "__main__":
     main()
