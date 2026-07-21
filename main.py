@@ -1,10 +1,10 @@
 import os
 import requests
 import json
-import random
 import urllib.parse
-from PIL import Image, ImageDraw, ImageFont
 import datetime
+import time
+from PIL import Image, ImageDraw, ImageFont
 
 # MoviePy for Video Editing & Music
 from moviepy.editor import ImageClip, AudioFileClip, ColorClip, CompositeVideoClip
@@ -15,7 +15,7 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-# Gemini API Key
+# API Key
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 def get_fake_headers():
@@ -24,10 +24,11 @@ def get_fake_headers():
 def download_hindi_font():
     font_path = "HindiFont.ttf"
     if not os.path.exists(font_path):
-        # Noto Sans Devanagari bold font download kar rahe hain jo Hindi ke liye best hai
+        print("📥 Downloading Hindi Font...")
         url = "https://github.com/googlefonts/noto-fonts/raw/main/unhinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Bold.ttf"
         res = requests.get(url, headers=get_fake_headers(), timeout=15)
-        with open(font_path, 'wb') as f: f.write(res.content)
+        with open(font_path, 'wb') as f: 
+            f.write(res.content)
     return font_path
 
 def download_auto_bg_music():
@@ -46,7 +47,7 @@ def download_auto_bg_music():
     return music_path if os.path.exists(music_path) else None
 
 def get_romantic_content_from_gemini():
-    print(f"🧠 Requesting Romantic Quote via Gemini 2.5 Flash...")
+    print(f"🧠 Requesting Romantic Quote via Gemini API (With Auto-Retry)...")
     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     prompt = f"""
@@ -56,7 +57,7 @@ def get_romantic_content_from_gemini():
     Task: Create a completely unique, highly emotional, heart-touching 2-line Hindi romantic quote or shayari (like Instagram couple reels).
     IMPORTANT: Keep the Hindi sentences natural, clean, and poetic.
     
-    You must output ONLY a valid JSON object.
+    You must output ONLY a valid JSON object. Do not wrap it in markdown.
     Structure exactly like this:
     {{
       "metadata": {{
@@ -64,10 +65,9 @@ def get_romantic_content_from_gemini():
         "description": "Tag your love. Beautiful romantic feelings and status. Subscribe for daily love quotes.",
         "tags": ["love", "romance", "shayari", "couple", "shorts", "status"]
       }},
-      "image_prompt": "Cinematic aesthetic romantic couple silhouette in cozy bedroom soft lighting, emotional mood, 8k resolution, highly detailed, NO text, NO watermarks",
-      "quote_text": "Limited si zindagi mein,\nUnlimited pyaar hai aapse."
+      "image_prompt": "Cinematic aesthetic romantic couple silhouette in cozy bedroom soft lighting, emotional mood, 8k resolution, highly detailed, NO text",
+      "quote_text": "Limited si zindagi mein,\\nUnlimited pyaar hai aapse."
     }}
-    Rules: Keep Hindi text deeply emotional. DO NOT include extra markdown outside the JSON.
     """
     
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
@@ -80,15 +80,36 @@ def get_romantic_content_from_gemini():
         }
     }
     
-    try:
-        response = requests.post(url, headers=headers, json=payload)
-        data = response.json()
-        if "error" in data:
-             raise Exception(f"API returned an error: {data['error']}")
-        json_text = data['candidates'][0]['content']['parts'][0]['text']
-        return json.loads(json_text)
-    except Exception as e:
-        raise Exception(f"❌ Gemini Text API Failed: {e}")
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            data = response.json()
+            
+            if "error" in data:
+                if data['error'].get('code') == 503 and attempt < max_retries - 1:
+                    print(f"⚠️ Server busy (503). Retrying in {(attempt+1)*5} seconds...")
+                    time.sleep((attempt + 1) * 5)
+                    continue
+                raise Exception(f"API returned an error: {data['error']}")
+                
+            json_text = data['candidates'][0]['content']['parts'][0]['text']
+            
+            # 🛠️ JSON Cleaner (Taaki binary ya markdown text na aaye)
+            json_text = json_text.strip()
+            if json_text.startswith("```json"):
+                json_text = json_text[7:]
+            if json_text.endswith("```"):
+                json_text = json_text[:-3]
+            json_text = json_text.strip()
+            
+            return json.loads(json_text)
+            
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise Exception(f"❌ Gemini Text API Failed after {max_retries} attempts: {e}")
+            print(f"⚠️ Attempt {attempt+1} failed. Retrying...")
+            time.sleep(5)
 
 def generate_image_free_api(image_prompt):
     print(f"🎨 Generating Romantic Background Image...")
@@ -108,8 +129,8 @@ def generate_image_free_api(image_prompt):
         print(f"⚠️ Failed to generate image: {e}")
     return None
 
-# 🛠️ Fixed Text Rendering Function for Proper Hindi Script Support
 def create_static_text_image(text, font_path, filename):
+    print("✍️ Drawing Text on Screen...")
     w, h = (1080, 1920)
     img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
@@ -118,24 +139,26 @@ def create_static_text_image(text, font_path, filename):
     try: 
         font = ImageFont.truetype(font_path, font_size)
     except: 
+        print("⚠️ Could not load font! Using default.")
         font = ImageFont.load_default()
 
     lines = text.split('\n')
-    
-    # Calculate total height based on lines
     total_height = len(lines) * (font_size + 30)
     y_text = (h - total_height) // 2
 
     for line in lines:
-        # Use textbbox for accurate text centering and rendering in modern Pillow
-        bbox = draw.textbbox((0, 0), line, font=font)
-        line_w = bbox[2] - bbox[0]
-        line_h = bbox[3] - bbox[1]
-        
+        line = line.strip()
+        # Text positioning fix (No binary/broken positioning)
+        try:
+            bbox = draw.textbbox((0, 0), line, font=font)
+            line_w = bbox[2] - bbox[0]
+        except:
+            line_w = font.getlength(line)
+            
         x_text = (w - line_w) // 2
         
-        # Drawing text with a nice dark shadow / stroke for high readability
-        draw.text((x_text, y_text), line, font=font, fill="#FFFFFF", stroke_width=5, stroke_fill="#000000")
+        # Draw bold black outline for clear reading, then white text
+        draw.text((x_text, y_text), line, font=font, fill="#FFFFFF", stroke_width=6, stroke_fill="#000000")
         y_text += (font_size + 30)
 
     img.save(filename)
@@ -148,7 +171,7 @@ def upload_video_to_youtube(video_path, title, description, tags):
     refresh_token = os.environ.get("REFRESH_TOKEN")
 
     if not all([client_id, client_secret, refresh_token]):
-        print("❌ YouTube Credentials missing! Skipping upload.")
+        print("❌ YouTube Credentials missing! Video saved locally but NOT uploaded.")
         return
 
     creds = Credentials(None, refresh_token=refresh_token, token_uri="https://oauth2.googleapis.com/token", client_id=client_id, client_secret=client_secret)
@@ -175,29 +198,33 @@ def main():
         print("❌ GEMINI_API_KEY Missing! Exiting...")
         return
 
-    print("🎲 Starting Romantic Short Generator (Fixed Text Rendering)...")
+    print("🎬 Starting Romantic Short Generator...")
 
     font_path = download_hindi_font()
     bg_music_path = download_auto_bg_music()
     
     data = get_romantic_content_from_gemini()
-    print(f"🎬 Title: {data['metadata']['title']}")
+    print(f"📄 Quote Generated: {data['quote_text']}")
     
     bg_image_path = generate_image_free_api(data.get("image_prompt", "Romantic aesthetic couple background"))
     
-    video_duration = 8.0
+    video_duration = 8.0 # 8 seconds short reel
     video_w, video_h = (1080, 1920)
 
+    # 1. Prepare Background Image with slight zoom
     bg_clip = ImageClip(bg_image_path).resize(width=video_w, height=video_h)
     bg_clip = bg_clip.resize(lambda t: 1 + 0.015 * t).set_position('center').set_duration(video_duration)
     
-    dark_overlay = ColorClip(size=(video_w, video_h), color=(15,0,15)).set_opacity(0.4).set_duration(video_duration)
+    # Dark shadow overlay to make text clear
+    dark_overlay = ColorClip(size=(video_w, video_h), color=(10,10,10)).set_opacity(0.45).set_duration(video_duration)
     background_final = CompositeVideoClip([bg_clip, dark_overlay])
 
+    # 2. Prepare Clean Text overlay
     text_img_file = "static_romantic_text.png"
     create_static_text_image(data['quote_text'], font_path, text_img_file)
     text_clip = ImageClip(text_img_file).set_duration(video_duration).set_position("center")
 
+    # 3. Add Auto-Downloaded Background Music
     final_audio = None
     if bg_music_path and os.path.exists(bg_music_path):
         try:
@@ -207,22 +234,25 @@ def main():
         except Exception as e:
             print(f"⚠️ Music loading error: {e}")
 
+    # 4. Final Compile
     final_video = CompositeVideoClip([background_final, text_clip])
     if final_audio:
         final_video.audio = final_audio
 
     final_video_name = "romantic_reel_status.mp4"
     
-    print("⚡ Rendering Final Video...")
+    print("⚡ Rendering Final Video (This will take a few seconds)...")
     final_video.write_videofile(final_video_name, fps=24, codec="libx264", audio_codec="aac", preset="ultrafast", threads=2, logger=None)
 
+    # Clean up generated images
     for f in [text_img_file, "dynamic_bg.jpg"]:
         if os.path.exists(f):
             try: os.remove(f)
             except: pass
 
+    # 5. Upload
     upload_video_to_youtube(final_video_name, data['metadata']['title'], data['metadata']['description'], data['metadata']['tags'])
-    print("✅ Done! Romantic Video Uploaded Successfully!")
+    print("✅ Process Completed Successfully!")
 
 if __name__ == "__main__":
     main()
