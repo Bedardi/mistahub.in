@@ -24,6 +24,7 @@ def get_fake_headers():
 def download_hindi_font():
     font_path = "HindiFont.ttf"
     if not os.path.exists(font_path):
+        # Noto Sans Devanagari bold font download kar rahe hain jo Hindi ke liye best hai
         url = "https://github.com/googlefonts/noto-fonts/raw/main/unhinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Bold.ttf"
         res = requests.get(url, headers=get_fake_headers(), timeout=15)
         with open(font_path, 'wb') as f: f.write(res.content)
@@ -53,6 +54,7 @@ def get_romantic_content_from_gemini():
     Current timestamp: {current_time}
     
     Task: Create a completely unique, highly emotional, heart-touching 2-line Hindi romantic quote or shayari (like Instagram couple reels).
+    IMPORTANT: Keep the Hindi sentences natural, clean, and poetic.
     
     You must output ONLY a valid JSON object.
     Structure exactly like this:
@@ -106,24 +108,35 @@ def generate_image_free_api(image_prompt):
         print(f"⚠️ Failed to generate image: {e}")
     return None
 
+# 🛠️ Fixed Text Rendering Function for Proper Hindi Script Support
 def create_static_text_image(text, font_path, filename):
     w, h = (1080, 1920)
     img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     
-    font_size = 75
-    try: font = ImageFont.truetype(font_path, font_size)
-    except: font = ImageFont.load_default()
+    font_size = 70
+    try: 
+        font = ImageFont.truetype(font_path, font_size)
+    except: 
+        font = ImageFont.load_default()
 
     lines = text.split('\n')
-    total_height = len(lines) * (font_size + 25)
+    
+    # Calculate total height based on lines
+    total_height = len(lines) * (font_size + 30)
     y_text = (h - total_height) // 2
 
     for line in lines:
-        try: line_w = font.getlength(line)
-        except: line_w = len(line) * (font_size / 2)
-        draw.text(((w - line_w) / 2, y_text), line, font=font, fill="#FFFFFF", stroke_width=6, stroke_fill="#FF1493")
-        y_text += (font_size + 25)
+        # Use textbbox for accurate text centering and rendering in modern Pillow
+        bbox = draw.textbbox((0, 0), line, font=font)
+        line_w = bbox[2] - bbox[0]
+        line_h = bbox[3] - bbox[1]
+        
+        x_text = (w - line_w) // 2
+        
+        # Drawing text with a nice dark shadow / stroke for high readability
+        draw.text((x_text, y_text), line, font=font, fill="#FFFFFF", stroke_width=5, stroke_fill="#000000")
+        y_text += (font_size + 30)
 
     img.save(filename)
     return filename
@@ -162,7 +175,7 @@ def main():
         print("❌ GEMINI_API_KEY Missing! Exiting...")
         return
 
-    print("🎲 Starting Romantic Short Generator (Static Text + Background Music)...")
+    print("🎲 Starting Romantic Short Generator (Fixed Text Rendering)...")
 
     font_path = download_hindi_font()
     bg_music_path = download_auto_bg_music()
@@ -178,7 +191,7 @@ def main():
     bg_clip = ImageClip(bg_image_path).resize(width=video_w, height=video_h)
     bg_clip = bg_clip.resize(lambda t: 1 + 0.015 * t).set_position('center').set_duration(video_duration)
     
-    dark_overlay = ColorClip(size=(video_w, video_h), color=(15,0,15)).set_opacity(0.45).set_duration(video_duration)
+    dark_overlay = ColorClip(size=(video_w, video_h), color=(15,0,15)).set_opacity(0.4).set_duration(video_duration)
     background_final = CompositeVideoClip([bg_clip, dark_overlay])
 
     text_img_file = "static_romantic_text.png"
