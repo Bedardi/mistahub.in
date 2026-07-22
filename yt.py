@@ -6,6 +6,7 @@ import datetime
 import time
 import random
 import textwrap
+import base64
 from PIL import Image, ImageDraw, ImageFont
 
 # MoviePy for Video Editing & Music
@@ -23,29 +24,37 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 def get_fake_headers():
     return {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-def download_hindi_font():
-    font_path = "HindiFont.ttf"
+def download_hindi_english_font():
+    font_path = "HindiEnglishFont.ttf"
     if not os.path.exists(font_path):
-        print("📥 Downloading Hindi Font...")
-        url = "https://github.com/googlefonts/noto-fonts/raw/main/unhinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Bold.ttf"
+        print("📥 Downloading High-Quality Hindi+English Font...")
+        # Using Hind font which perfectly supports both English and Hindi without showing boxes
+        url = "https://github.com/google/fonts/raw/main/ofl/hind/Hind-Bold.ttf"
         res = requests.get(url, headers=get_fake_headers(), timeout=15)
-        with open(font_path, 'wb') as f: 
-            f.write(res.content)
+        if res.status_code == 200:
+            with open(font_path, 'wb') as f: 
+                f.write(res.content)
+        else:
+            # Fallback URL if above fails
+            url2 = "https://github.com/google/fonts/raw/main/ofl/mukta/Mukta-Bold.ttf"
+            res2 = requests.get(url2, headers=get_fake_headers(), timeout=15)
+            with open(font_path, 'wb') as f: 
+                f.write(res2.content)
     return font_path
 
 def download_auto_bg_music():
-    # 🎵 Yahan maine trending Emotional, Lofi aur Romantic Piano tracks add kiye hain jo bilkul copyright-free hain!
+    # 🎵 Trending Emotional & Lofi Tracks (100% Copyright-Free)
     music_urls = [
-        "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c3623910.mp3?filename=emotional-piano-107771.mp3", # Deep Emotional Piano
-        "https://cdn.pixabay.com/download/audio/2022/10/25/audio_228c2e6f47.mp3?filename=lofi-study-112191.mp3",     # Chill/Sad Lofi
-        "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=romantic-corporate-10118.mp3", # Warm Romantic
-        "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf756.mp3?filename=romantic-guitars-112134.mp3"  # Acoustic Guitar
+        "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c3623910.mp3?filename=emotional-piano-107771.mp3",
+        "https://cdn.pixabay.com/download/audio/2022/10/25/audio_228c2e6f47.mp3?filename=lofi-study-112191.mp3",
+        "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=romantic-corporate-10118.mp3",
+        "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf756.mp3?filename=romantic-guitars-112134.mp3"
     ]
     music_url = random.choice(music_urls)
     
     music_path = "auto_bg_music.mp3"
     if os.path.exists(music_path):
-        os.remove(music_path) # Delete old track to get a new one every time
+        os.remove(music_path)
         
     print("🎵 Downloading trending emotional non-copyright music...")
     try:
@@ -53,21 +62,20 @@ def download_auto_bg_music():
         if res.status_code == 200:
             with open(music_path, 'wb') as f:
                 f.write(res.content)
-            print("✅ Emotional Background music downloaded successfully!")
     except Exception as e:
         print(f"⚠️ Could not download background music: {e}")
     return music_path if os.path.exists(music_path) else None
 
 def get_romantic_content_from_gemini():
-    print(f"🧠 Requesting Bilingual (Hinglish) Viral Quote via Gemini...")
+    print(f"🧠 Requesting Hinglish Viral Quote via Gemini...")
     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    # Instagram style cozy and close-up couple prompts
+    # 🇮🇳 INDIAN AESTHETIC PROMPTS
     themes = [
-        "Romantic couple laying on bed looking at each other, cozy mood, highly detailed, cinematic lighting, 8k",
-        "Close up of romantic couple holding hands in a cafe, warm aesthetic, emotional vibe, 8k",
-        "Aesthetic silhouette of a couple hugging in the rain, dark moody atmosphere, neon lights, 8k",
-        "Romantic couple sitting together on a cozy couch, warm fairy lights, intimate mood, 8k"
+        "Photorealistic aesthetic young Indian couple silhouette sitting near a window with rain drops, cozy mood, cinematic lighting, 8k",
+        "Cozy bedroom with warm fairy lights, beautiful young Indian couple hugging, cinematic romantic mood, 8k",
+        "Beautiful beach sunset silhouette of a romantic Indian couple wearing casual modern Indian clothes holding hands, warm golden hour light, 8k",
+        "Moody aesthetic cafe corner, handsome Indian guy and beautiful Indian girl sharing a coffee, cinematic blur, 8k"
     ]
     chosen_theme = random.choice(themes)
     
@@ -80,7 +88,7 @@ def get_romantic_content_from_gemini():
     
     IMPORTANT RULES: 
     1. Mix English and Hindi. Example style: "Limited सी जिंदगी में, Unlimited प्यार है आपसे" or "मेरा Favorite notification सिर्फ तुम हो".
-    2. Write the Hindi parts in pure Devanagari script.
+    2. Write the Hindi parts in pure Devanagari script and English in Latin.
     3. Keep the quote VERY short (maximum 2 lines).
     4. DO NOT use emojis inside 'quote_text'. Put emojis only in the title/description.
     
@@ -123,38 +131,55 @@ def get_romantic_content_from_gemini():
                 raise Exception(f"API returned an error: {data['error']}")
                 
             json_text = data['candidates'][0]['content']['parts'][0]['text']
-            
             json_text = json_text.strip()
-            if json_text.startswith("```json"):
-                json_text = json_text[7:]
-            if json_text.endswith("```"):
-                json_text = json_text[:-3]
-            json_text = json_text.strip()
-            
-            return json.loads(json_text)
+            if json_text.startswith("```json"): json_text = json_text[7:]
+            if json_text.endswith("```"): json_text = json_text[:-3]
+            return json.loads(json_text.strip())
             
         except Exception as e:
             if attempt == max_retries - 1:
                 raise Exception(f"❌ Gemini Text API Failed after {max_retries} attempts: {e}")
-            print(f"⚠️ Attempt {attempt+1} failed. Retrying...")
             time.sleep(5)
 
-def generate_image_free_api(image_prompt):
-    print(f"🎨 Generating Cozy/Romantic Background Image...")
-    width, height = (1080, 1920)
-    encoded_prompt = urllib.parse.quote(image_prompt)
-    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true&seed={random.randint(1, 999999)}"
-    
+def generate_image(image_prompt, api_key):
+    print(f"🎨 Generating Indian Couple Image via Gemini (Imagen 3)...")
     img_path = "dynamic_bg.jpg"
+    
+    # GEMINI IMAGE API (Imagen 3)
+    gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key={api_key}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "instances": [{"prompt": image_prompt}],
+        "parameters": {"sampleCount": 1, "aspectRatio": "9:16"}
+    }
+    
     try:
-        response = requests.get(image_url, stream=True, timeout=30)
+        res = requests.post(gemini_url, headers=headers, json=payload, timeout=40)
+        data = res.json()
+        if "predictions" in data and len(data["predictions"]) > 0:
+            b64_img = data["predictions"][0]["bytesBase64Encoded"]
+            with open(img_path, "wb") as f:
+                f.write(base64.b64decode(b64_img))
+            print("✅ Crystal Clear Image generated via Gemini API!")
+            return img_path
+        else:
+            print(f"⚠️ Gemini Imagen API is disabled on your key. Using High-Res Fallback AI...")
+    except Exception as e:
+        print(f"⚠️ Gemini Image generation failed: {e}. Using High-Res Fallback AI...")
+        
+    # FALLBACK: If Gemini API fails, use High-Res Pollinations AI (Flux Model)
+    encoded_prompt = urllib.parse.quote(image_prompt + ", ultra realistic 4k photography")
+    fallback_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1080&height=1920&nologo=true&seed={random.randint(1, 999999)}"
+    try:
+        response = requests.get(fallback_url, stream=True, timeout=30)
         if response.status_code == 200:
             with open(img_path, 'wb') as f:
                 for chunk in response.iter_content(1024):
                     f.write(chunk)
+            print("✅ Image generated via Alternative HD AI!")
             return img_path
     except Exception as e:
-        print(f"⚠️ Failed to generate image: {e}")
+        print(f"⚠️ Fallback Image failed: {e}")
     return None
 
 def create_static_text_image(text, font_path, filename, text_color, stroke_color):
@@ -163,7 +188,6 @@ def create_static_text_image(text, font_path, filename, text_color, stroke_color
     img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     
-    # 🛠️ FONT SIZE PERFECT INSTAGRAM SIZE
     font_size = 65
     try: 
         font = ImageFont.truetype(font_path, font_size)
@@ -187,8 +211,6 @@ def create_static_text_image(text, font_path, filename, text_color, stroke_color
             line_w = font.getlength(line)
             
         x_text = (w - line_w) // 2
-        
-        # 🌟 Instagram Aesthetic Text Effect (Dark thick shadow/outline)
         draw.text((x_text, y_text), line, font=font, fill=text_color, stroke_width=5, stroke_fill="#111111")
         y_text += (font_size + 25)
 
@@ -229,17 +251,16 @@ def main():
         print("❌ GEMINI_API_KEY Missing! Exiting...")
         return
 
-    print("🎬 Starting Viral 'Hinglish' Emotional Short Generator...")
+    print("🎬 Starting Viral 'Indian Couple' Emotional Short Generator...")
 
-    font_path = download_hindi_font()
+    font_path = download_hindi_english_font()
     bg_music_path = download_auto_bg_music()
     
     data = get_romantic_content_from_gemini()
     print(f"📄 Generated Viral Quote: {data['quote_text']}")
     
-    bg_image_path = generate_image_free_api(data.get("image_prompt"))
+    bg_image_path = generate_image(data.get("image_prompt"), GEMINI_API_KEY)
     
-    # ⏱️ Viral shorts are usually 7-8 seconds long for high audience retention
     video_duration = 7.0 
     video_w, video_h = (1080, 1920)
 
@@ -248,7 +269,6 @@ def main():
     bg_clip = ImageClip(bg_image_path).resize(width=video_w, height=video_h)
     bg_clip = bg_clip.resize(lambda t: 1 + zoom_factor * t).set_position('center').set_duration(video_duration)
     
-    # Dark vignette/overlay so the white text pops up properly like Instagram
     dark_overlay = ColorClip(size=(video_w, video_h), color=(10,10,10)).set_opacity(0.40).set_duration(video_duration)
     background_final = CompositeVideoClip([bg_clip, dark_overlay])
 
@@ -265,10 +285,8 @@ def main():
     if bg_music_path and os.path.exists(bg_music_path):
         try:
             bg_music = AudioFileClip(bg_music_path).subclip(0, video_duration)
-            
-            # 🎵 Fade In & Fade Out for professional audio feel
             bg_music = bg_music.audio_fadein(1.0).audio_fadeout(1.0)
-            bg_music = volumex(bg_music, 0.6) # Volume thoda zyada kiya taaki vibes aayen
+            bg_music = volumex(bg_music, 0.6) 
             final_audio = bg_music
         except Exception as e:
             print(f"⚠️ Music loading error: {e}")
