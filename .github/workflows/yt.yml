@@ -1,32 +1,33 @@
-name: Build and Upload YouTube Short
+name: YouTube Short
 
 on:
   schedule:
-    - cron: '0 * * * *' # Har 1 ghante mein chalega (aap apne hisaab se change kar sakte hain)
+    # Din mein 4 baar chalega (Har 6 ghante mein: 00:00, 06:00, 12:00, 18:00 UTC)
+    - cron: '0 0,6,12,18 * * *' 
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1. YEH STEP SABSE PEHLE HONA ZAROORI HAI (Yeh repo ki files ko download karta hai)
+      # 1. Repository se files download karna
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 2. Python Setup
+      # 2. Python environment set karna
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
           cache: 'pip'
 
-      # 3. Dependencies Install Karein
+      # 3. Zaroori libraries (requirements) install karna
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 4. Main Python Script Run Karein
+      # 4. Aapki main script (yt.py) run karna aur video upload karna
       - name: Run Script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -34,4 +35,4 @@ jobs:
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
           REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
         run: |
-          python yt.py  # (Yahan apni python file ka sahi naam likhein agar alag hai)
+          python yt.py
