@@ -88,13 +88,26 @@ def get_psychology_script():
 def generate_image(prompt):
     print("🎨 Generating Cinematic Background...")
     img_path = "bg_image.jpg"
-    # Using Pollinations AI as a reliable, fast fallback for GitHub actions
-    encoded_prompt = urllib.parse.quote(prompt + ", dark aesthetic, mystery, 4k resolution, no text")
-    url = f"[https://image.pollinations.ai/prompt/](https://image.pollinations.ai/prompt/){encoded_prompt}?width=1080&height=1920&nologo=true"
     
-    res = requests.get(url, stream=True)
-    with open(img_path, 'wb') as f:
-        for chunk in res.iter_content(1024): f.write(chunk)
+    # URL ko simple aur clean rakha gaya hai (koi brackets nahi hain)
+    encoded_prompt = urllib.parse.quote(prompt + ", dark aesthetic, mystery, 4k resolution, no text")
+    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1080&height=1920&nologo=true"
+    
+    try:
+        # Request with a timeout added for safety
+        res = requests.get(url, stream=True, timeout=30)
+        
+        if res.status_code == 200:
+            with open(img_path, 'wb') as f:
+                for chunk in res.iter_content(1024): 
+                    f.write(chunk)
+            print("✅ Background Image Downloaded Successfully!")
+        else:
+            print(f"⚠️ Warning: Image API failed with status code {res.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Image download error: {e}")
+        
     return img_path
 
 async def generate_ai_voice(text, filename):
