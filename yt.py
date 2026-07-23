@@ -12,7 +12,7 @@ import edge_tts
 from PIL import Image, ImageDraw, ImageFont
 
 # MoviePy for Video
-from moviepy.editor import ImageClip, AudioFileClip, ColorClip, CompositeVideoClip, TextClip, concatenate_audioclips
+from moviepy.editor import ImageClip, AudioFileClip, ColorClip, CompositeVideoClip, concatenate_audioclips
 from moviepy.audio.fx.all import volumex
 
 # YouTube API
@@ -37,7 +37,7 @@ def download_font():
     return font_path
 
 def download_suspense_music():
-    # Dark/Suspense background music for Psychology theme
+    print("🎵 Downloading Suspense Music...")
     music_urls = [
         "https://cdn.pixabay.com/download/audio/2022/03/15/audio_5116fc01c1.mp3?filename=dark-ambient-107774.mp3",
         "https://cdn.pixabay.com/download/audio/2022/01/18/audio_6c97a06316.mp3?filename=suspense-113264.mp3"
@@ -71,7 +71,7 @@ def get_psychology_script():
       },
       "image_prompt": "Dark mysterious silhouette of a person standing in foggy cinematic street, neon lights, 8k highly detailed",
       "hook_text": "Kya aapko pata hai ki log aapse jhooth kaise bolte hain?",
-      "body_text": "Psychology kehti hai ki jab koi jhooth bolta hai, toh wo apni naak ya chehre ko baar-baar touch karta hai. Ise Pinocchio effect kehte hain.",
+      "body_text": "Psychology kehti hai ki jab koi jhooth bolta hai, toh wo apni naak ya chehre ko baar-baar touch karta hai.",
       "outro_text": "Apne dosto ko bhej kar unka jhooth pakdo, aur subscribe karo!"
     }
     """
@@ -89,48 +89,66 @@ def generate_image(prompt):
     print("🎨 Generating Cinematic Background...")
     img_path = "bg_image.jpg"
     
-    # URL ko simple aur clean rakha gaya hai (koi brackets nahi hain)
+    # URL encoded safely without markdown brackets
     encoded_prompt = urllib.parse.quote(prompt + ", dark aesthetic, mystery, 4k resolution, no text")
-    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1080&height=1920&nologo=true"
+    url = f"[https://image.pollinations.ai/prompt/](https://image.pollinations.ai/prompt/){encoded_prompt}?width=1080&height=1920&nologo=true"
     
     try:
-        # Request with a timeout added for safety
         res = requests.get(url, stream=True, timeout=30)
-        
         if res.status_code == 200:
             with open(img_path, 'wb') as f:
                 for chunk in res.iter_content(1024): 
                     f.write(chunk)
-            print("✅ Background Image Downloaded Successfully!")
-        else:
-            print(f"⚠️ Warning: Image API failed with status code {res.status_code}")
-            
+            print("✅ Background Image Downloaded!")
     except Exception as e:
         print(f"❌ Image download error: {e}")
         
     return img_path
 
 async def generate_ai_voice(text, filename):
-    # Using Microsoft Edge TTS (Deep Male Voice)
     communicate = edge_tts.Communicate(text, "en-IN-PrabhatNeural", rate="+5%") 
     await communicate.save(filename)
 
-def create_text_clip(text, font_path, duration, start_time):
-    # Wrap text so it fits the vertical screen
-    wrapped_text = "\n".join(textwrap.wrap(text, width=25))
+# BULLETPROOF TEXT GENERATOR (Bypasses ImageMagick)
+def create_text_image(text, font_path, filename):
+    w, h = 1080, 1920
+    img = Image.new('RGBA', (w, h), (0, 0, 0, 0)) # Transparent background
+    draw = ImageDraw.Draw(img)
     
-    # Create text clip with stroke for readability
-    txt_clip = TextClip(wrapped_text, fontsize=70, font=font_path, color='white', 
-                        stroke_color='black', stroke_width=3, method='caption', 
-                        size=(900, None), align='center')
+    font_size = 65
+    try:
+        font = ImageFont.truetype(font_path, font_size)
+    except:
+        font = ImageFont.load_default()
+        
+    wrapped_lines = []
+    raw_lines = text.replace('\\n', '\n').split('\n')
+    for raw_line in raw_lines:
+        wrapped_lines.extend(textwrap.wrap(raw_line, width=22))
+        
+    total_height = len(wrapped_lines) * (font_size + 20)
+    y_text = (h - total_height) // 2
     
-    # Center it and set timing
-    return txt_clip.set_position('center').set_start(start_time).set_duration(duration)
+    for line in wrapped_lines:
+        line = line.strip()
+        try:
+            bbox = draw.textbbox((0, 0), line, font=font)
+            line_w = bbox[2] - bbox[0]
+        except:
+            line_w = font.getlength(line)
+            
+        x_text = (w - line_w) // 2
+        # Drawing text with stroke for readability
+        draw.text((x_text, y_text), line, font=font, fill="white", stroke_width=4, stroke_fill="black")
+        y_text += (font_size + 20)
+        
+    img.save(filename)
+    return filename
 
 def build_video(data, font_path, bg_music_path, bg_img_path):
     print("⚡ Assembling Video with AI Voice and Dynamic Captions...")
     
-    # 1. Generate Voice for 3 parts
+    # 1. Generate Voice
     asyncio.run(generate_ai_voice(data['hook_text'], "audio_hook.mp3"))
     asyncio.run(generate_ai_voice(data['body_text'], "audio_body.mp3"))
     asyncio.run(generate_ai_voice(data['outro_text'], "audio_outro.mp3"))
@@ -139,34 +157,30 @@ def build_video(data, font_path, bg_music_path, bg_img_path):
     audio_body = AudioFileClip("audio_body.mp3")
     audio_outro = AudioFileClip("audio_outro.mp3")
     
-    # Calculate durations
     t1, t2, t3 = audio_hook.duration, audio_body.duration, audio_outro.duration
     total_duration = t1 + t2 + t3
-    
-    # Combine Audios
     final_voice = concatenate_audioclips([audio_hook, audio_body, audio_outro])
     
     # 2. Setup Background Visuals
     bg_clip = ImageClip(bg_img_path).resize(width=1080, height=1920)
     bg_clip = bg_clip.resize(lambda t: 1 + 0.015 * t).set_position('center').set_duration(total_duration)
-    
-    # Add dark overlay so text pops out
     dark_overlay = ColorClip(size=(1080, 1920), color=(0,0,0)).set_opacity(0.6).set_duration(total_duration)
     
-    # 3. Setup Dynamic Text Clips
-    text_hook = create_text_clip(data['hook_text'], font_path, t1, 0)
-    text_body = create_text_clip(data['body_text'], font_path, t2, t1)
-    text_outro = create_text_clip(data['outro_text'], font_path, t3, t1 + t2)
+    # 3. Setup Text Clips (Using Pillow ImageClip instead of TextClip)
+    create_text_image(data['hook_text'], font_path, "text_hook.png")
+    create_text_image(data['body_text'], font_path, "text_body.png")
+    create_text_image(data['outro_text'], font_path, "text_outro.png")
     
-    # 4. Mix Audio (Voice + Low Background Music)
+    clip_hook = ImageClip("text_hook.png").set_start(0).set_duration(t1).set_position('center')
+    clip_body = ImageClip("text_body.png").set_start(t1).set_duration(t2).set_position('center')
+    clip_outro = ImageClip("text_outro.png").set_start(t1 + t2).set_duration(t3).set_position('center')
+    
+    # 4. Mix Audio and Video
     bg_music = AudioFileClip(bg_music_path).subclip(0, total_duration)
-    bg_music = volumex(bg_music, 0.15) # Very low volume for background
-    final_audio = CompositeVideoClip([bg_clip]).set_audio(final_voice) # Trick to mix audio easily
+    bg_music = volumex(bg_music, 0.15) 
     
-    # Combine everything
-    final_video = CompositeVideoClip([bg_clip, dark_overlay, text_hook, text_body, text_outro])
+    final_video = CompositeVideoClip([bg_clip, dark_overlay, clip_hook, clip_body, clip_outro])
     
-    # Assign voiceover and music
     from moviepy.audio.AudioClip import CompositeAudioClip
     final_video.audio = CompositeAudioClip([final_voice, bg_music])
     
@@ -174,7 +188,7 @@ def build_video(data, font_path, bg_music_path, bg_img_path):
     final_video.write_videofile(output_filename, fps=24, codec="libx264", audio_codec="aac", preset="ultrafast", threads=2, logger=None)
     
     # Cleanup temp files
-    for f in ["audio_hook.mp3", "audio_body.mp3", "audio_outro.mp3", bg_img_path]:
+    for f in ["audio_hook.mp3", "audio_body.mp3", "audio_outro.mp3", "text_hook.png", "text_body.png", "text_outro.png", bg_img_path]:
         try: os.remove(f)
         except: pass
         
@@ -203,7 +217,7 @@ def upload_to_youtube(video_path, metadata):
 
 def main():
     if not GEMINI_API_KEY:
-        print("❌ GEMINI_API_KEY missing in environment variables.")
+        print("❌ GEMINI_API_KEY missing!")
         return
         
     print("🎬 Starting Dark Psychology Video Generator...")
