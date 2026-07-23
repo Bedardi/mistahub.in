@@ -1,33 +1,38 @@
-name: YouTube Short
+name: YouTube Short Automation
 
 on:
   schedule:
-    # Din mein 4 baar chalega (Har 6 ghante mein: 00:00, 06:00, 12:00, 18:00 UTC)
-    - cron: '0 0,6,12,18 * * *' 
-  workflow_dispatch:
+    # Din mein 2 baar chalega (Best Indian Peak Times)
+    # UTC Times: 08:00, 13:00 
+    # IST Times (India): 1:30 PM aur 6:30 PM
+    - cron: '0 8,13 * * *' 
+  workflow_dispatch: # Manual run ke liye
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1. Repository se files download karna
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 2. Python environment set karna
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
           cache: 'pip'
 
-      # 3. Zaroori libraries (requirements) install karna
+      # FIX: MoviePy TextClip ke liye ImageMagick Policy
+      - name: Setup ImageMagick for MoviePy Text
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
+          sudo sed -i '/<policy domain="path" rights="none" pattern="@\*"/d' /etc/ImageMagick-6/policy.xml
+
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 4. Aapki main script (yt.py) run karna aur video upload karna
       - name: Run Script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
