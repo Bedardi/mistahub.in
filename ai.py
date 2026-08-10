@@ -1,214 +1,237 @@
 import os
+import sys
+import subprocess
+
+# ==========================================
+# 1. AUTO-INSTALLER (NO requirements.txt NEEDED)
+# ==========================================
+def install_packages():
+    print("⚙️ Checking dependencies...")
+    try:
+        import requests
+        import edge_tts
+        from PIL import Image
+    except ImportError:
+        print("📦 Installing required packages automatically...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "requests", "edge-tts", "pillow"])
+        print("✅ Packages installed successfully!\n")
+
+install_packages()
+
+# Dependencies load karne ke baad import
 import requests
 import json
-import time
 import random
-import textwrap
+import urllib.parse
 import asyncio
-import base64
 import edge_tts
-from concurrent.futures import ThreadPoolExecutor
 from PIL import Image, ImageDraw, ImageFont
-
-# MoviePy
-from moviepy.editor import ImageClip, AudioFileClip, CompositeVideoClip
-from moviepy.audio.fx.all import volumex
-from moviepy.audio.AudioClip import CompositeAudioClip
-
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+from concurrent.futures import ThreadPoolExecutor
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-def get_url(b64_string):
-    return base64.b64decode(b64_string).decode("utf-8")
+# ==========================================
+# 2. HELPER FUNCTIONS & AI GENERATORS
+# ==========================================
 
 def get_fake_headers():
     return {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
-def download_font():
-    font_path = "BoldFont.ttf"
-    if not os.path.exists(font_path):
-        print("📥 Downloading Font...")
-        url = get_url("aHR0cHM6Ly9naXRodWIuY29tL2dvb2dsZS9mb250cy9yYXcvbWFpbi9vZmwvbW9udHNlcnJhdC9Nb250c2VycmF0LUJsYWNrLnR0Zg==")
-        res = requests.get(url, headers=get_fake_headers(), timeout=15)
-        if res.status_code == 200:
-            with open(font_path, 'wb') as f: 
-                f.write(res.content)
-    return font_path if os.path.exists(font_path) else None
-
 def download_background_music():
-    print("🎵 Downloading Ambient Audio...")
-    music_url = get_url("aHR0cHM6Ly9jZG4ucGl4YWJheS5jb20vZG93bmxvYWQvYXVkaW8vMjAyMi8wMy8xNS9hdWRpb181MTE2ZmMwMWMxLm1wMz9maWxlbmFtZT1kYXJrLWFtYmllbnQtMTA3Nzc0Lm1wMw==")
+    print("🎵 Downloading Ambient BGM...")
+    url = "https://cdn.pixabay.com/download/audio/2022/03/15/audio_5116fc01c1.mp3?filename=dark-ambient-107774.mp3"
     music_path = "ambient_bg.mp3"
     try:
-        res = requests.get(music_url, headers=get_fake_headers(), timeout=15)
+        res = requests.get(url, headers=get_fake_headers(), timeout=15)
         if res.status_code == 200:
-            with open(music_path, 'wb') as f:
-                f.write(res.content)
-    except Exception as e:
-        print(f"⚠️ Background music skipped: {e}")
+            with open(music_path, 'wb') as f: f.write(res.content)
+    except:
+        pass
     return music_path if os.path.exists(music_path) else None
 
 def call_gemini(prompt):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.85}
-    }
+    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.85}}
     res = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=60)
     data = res.json()
     if res.status_code == 200 and 'candidates' in data:
         return data['candidates'][0]['content']['parts'][0]['text'].strip()
     return ""
 
-def generate_dark_canvas_image(title_text, filename="background.png"):
-    print("🎨 Creating Dark Canvas...")
-    w, h = 1920, 1080
-    img = Image.new('RGB', (w, h), color=(12, 12, 18))
-    draw = ImageDraw.Draw(img)
-    font_path = download_font()
+def generate_pollinations_image(prompt, filename):
+    print(f"🎨 Generating AI Image via Pollinations: {filename}...")
+    # Safe fallback if Gemini prompt is weird
+    safe_prompt = urllib.parse.quote("Dark cinematic mystery horror realistic, " + prompt)
+    url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=1920&height=1080&nologo=true"
+    
     try:
-        font = ImageFont.truetype(font_path, 60)
-    except:
-        font = ImageFont.load_default()
-
-    wrapped_lines = textwrap.wrap(title_text, width=42)
-    total_h = len(wrapped_lines) * 75
-    y = (h - total_h) // 2
-
-    for line in wrapped_lines:
-        try:
-            bbox = draw.textbbox((0, 0), line, font=font)
-            line_w = bbox[2] - bbox[0]
-        except:
-            line_w = font.getlength(line)
-        x = (w - line_w) // 2
-        draw.text((x, y), line, font=font, fill=(240, 240, 240))
-        y += 75
-
+        res = requests.get(url, timeout=30)
+        if res.status_code == 200:
+            with open(filename, 'wb') as f:
+                f.write(res.content)
+            return filename
+    except Exception as e:
+        print(f"⚠️ Image generation failed for {filename}: {e}")
+    
+    # Fallback to black screen if Pollinations fails
+    img = Image.new('RGB', (1920, 1080), color=(15, 15, 15))
     img.save(filename)
     return filename
 
-def generate_chapter(ch):
-    print(f"📖 Expanding Chapter {ch['chapter_num']}...")
-    chapter_prompt = f"Write Chapter {ch['chapter_num']} ({ch['topic']}) for a long storytelling audiobook in Hindi (Hinglish Roman Script). Requirement: suspenseful, atmospheric. Length: 800-1000 words. Output ONLY narration."
-    return call_gemini(chapter_prompt)
+def generate_chapter_data(ch):
+    print(f"📖 Expanding Chapter {ch['chapter_num']}: {ch['topic']}...")
+    prompt = f"Write Chapter {ch['chapter_num']} ({ch['topic']}) for a long Hinglish audiobook. Requirement: suspenseful. Length: 800-1000 words. Output ONLY narration without any headers."
+    narration = call_gemini(prompt)
+    return {"num": ch['chapter_num'], "topic": ch['topic'], "text": narration}
 
-def generate_long_audiobook_script():
-    print("🧠 Outlining Story via Gemini API...")
-    genres = ["Mystery Horror", "Psychological Thriller"]
-    outline_prompt = f"""You are a YouTube Creator. Create an outline for a long Hinglish story in '{random.choice(genres)}'. Divide into 5 Chapters. Output JSON ONLY:
-    {{"metadata": {{"title": "Unsolved Mystery - Hindi Full Audiobook Story", "description": "Listen to this long gripping audiobook story in Hindi. #audiobook #hindi #story #mystery", "tags": ["audiobook", "hindi story", "thriller", "full story"]}}, "chapters": [{{"chapter_num": 1, "topic": "The Strange Discovery"}}, {{"chapter_num": 2, "topic": "The Unseen Shadows"}}, {{"chapter_num": 3, "topic": "Deeper Into The Darkness"}}, {{"chapter_num": 4, "topic": "The Shocking Secret"}}, {{"chapter_num": 5, "topic": "Final Truth Revealed"}}]}}"""
+async def generate_tts(text, filename):
+    await edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+5%").save(filename)
+
+# ==========================================
+# 3. VIDEO ASSEMBLY (FFMPEG NATIVE)
+# ==========================================
+
+def build_chapter_video(image_path, audio_path, output_path):
+    print(f"⚡ Rendering {output_path} (Image + Audio)...")
+    cmd = [
+        "ffmpeg", "-y",
+        "-loop", "1", "-framerate", "1", "-i", image_path,
+        "-i", audio_path,
+        "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
+        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-shortest", output_path
+    ]
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+
+def build_full_movie(chapters_data, bg_music):
+    print("🎬 Starting FFmpeg Chapter Assembly...")
+    chapter_files = []
     
-    outline_raw = call_gemini(outline_prompt)
-    if outline_raw.startswith("```json"): outline_raw = outline_raw[7:-3]
-    script_data = json.loads(outline_raw.strip())
-
-    # Parallel API Calls for speed
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        chapters_text = list(executor.map(generate_chapter, script_data['chapters']))
-
-    script_data['full_narration'] = "\n\n".join(chapters_text)
-    return script_data
-
-async def generate_tts_file(text, filename):
-    communicate = edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+5%")
-    await communicate.save(filename)
-
-def build_long_video(data, bg_img_path, bg_music_path):
-    print("⚡ Building Video...")
-    audio_file = "full_story_audio.mp3"
-    asyncio.run(generate_tts_file(data['full_narration'], audio_file))
-
-    voice_clip = AudioFileClip(audio_file)
-    total_duration = voice_clip.duration
-    print(f"⏱️ Duration: {round(total_duration / 60, 2)} Mins")
-
-    # Static Image (Fast Render)
-    bg_clip = ImageClip(bg_img_path).resize(width=1920, height=1080).set_duration(total_duration)
-
-    if bg_music_path and os.path.exists(bg_music_path):
-        bg_music = AudioFileClip(bg_music_path)
-        bg_music = bg_music.loop(duration=total_duration) if bg_music.duration < total_duration else bg_music.subclip(0, total_duration)
-        bg_music = volumex(bg_music, 0.08)
-        final_audio = CompositeAudioClip([voice_clip, bg_music])
+    # Generate Audio, Images, and Mini-videos for each chapter
+    for ch in chapters_data:
+        num = ch['num']
+        audio_file = f"audio_{num}.mp3"
+        img_file = f"img_{num}.jpg"
+        vid_file = f"chap_{num}.mp4"
+        
+        asyncio.run(generate_tts(ch['text'], audio_file))
+        generate_pollinations_image(ch['topic'], img_file)
+        build_chapter_video(img_file, audio_file, vid_file)
+        
+        chapter_files.append(vid_file)
+    
+    # Merge all chapter videos into one
+    print("🔗 Concatenating All Chapters...")
+    with open("concat.txt", "w") as f:
+        for vid in chapter_files:
+            f.write(f"file '{vid}'\n")
+            
+    merged_vid = "merged_no_bgm.mp4"
+    subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "concat.txt", "-c", "copy", merged_vid], 
+                   stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    
+    # Add Background Music (if available)
+    final_output = "long_audiobook_final.mp4"
+    if bg_music and os.path.exists(bg_music):
+        print("🎧 Adding Ambient Background Music...")
+        cmd = [
+            "ffmpeg", "-y", 
+            "-i", merged_vid, 
+            "-stream_loop", "-1", "-i", bg_music,
+            "-filter_complex", "[1:a]volume=0.08[bgm];[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[a]",
+            "-map", "0:v", "-map", "[a]", 
+            "-c:v", "copy", "-c:a", "aac", final_output
+        ]
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     else:
-        final_audio = voice_clip
-
-    final_video = CompositeVideoClip([bg_clip]).set_audio(final_audio)
-
-    output_filename = "long_audiobook_video.mp4"
-    print("🎬 Rendering Final MP4 Video... (Fast mode)")
-    
-    # 1 FPS for instant render
-    final_video.write_videofile(
-        output_filename, 
-        fps=1, 
-        codec="libx264", 
-        audio_codec="aac", 
-        preset="ultrafast", 
-        threads=4, 
-        logger=None
-    )
-    return output_filename
-
-def upload_to_youtube(video_path, metadata):
-    print(f"🚀 Uploading Long Video to YouTube: {metadata['title']}")
+        os.rename(merged_vid, final_output)
+        
+    print("🧹 Cleaning up temp files...")
     try:
-        # Aapka original YouTube upload logic add kar diya gaya hai
-        token_url = get_url("aHR0cHM6Ly9vYXV0aDIuZ29vZ2xlYXBpcy5jb20vdG9rZW4=")
-        creds = Credentials(
-            None, 
-            refresh_token=os.environ.get("REFRESH_TOKEN"), 
-            token_uri=token_url, 
-            client_id=os.environ.get("CLIENT_ID"), 
-            client_secret=os.environ.get("CLIENT_SECRET")
-        )
+        os.remove("concat.txt")
+        for i in range(1, 6):
+            os.remove(f"audio_{i}.mp3")
+            os.remove(f"img_{i}.jpg")
+            os.remove(f"chap_{i}.mp4")
+        if os.path.exists("merged_no_bgm.mp4"): os.remove("merged_no_bgm.mp4")
+    except: pass
+    
+    return final_output
 
-        youtube = build("youtube", "v3", credentials=creds)
-        body = {
-            "snippet": {
-                "title": metadata['title'][:100], 
-                "description": metadata['description'], 
-                "tags": metadata['tags'], 
-                "categoryId": "24"
-            },
-            "status": {
-                "privacyStatus": "public", 
-                "selfDeclaredMadeForKids": False
-            }
-        }
-        req = youtube.videos().insert(
-            part="snippet,status", 
-            body=body, 
-            media_body=MediaFileUpload(video_path, chunksize=-1, resumable=True)
-        )
-        response = req.execute()
-        print("🎉 SUCCESS! Long Audiobook Uploaded! Video ID:", response['id'])
-    except Exception as e:
-        print(f"❌ YouTube Upload Failed: {e}")
+# ==========================================
+# 4. YOUTUBE UPLOAD (REST API)
+# ==========================================
+
+def upload_to_youtube_lightweight(video_path, metadata):
+    print(f"🚀 Uploading to YouTube: {metadata['title']}")
+    res = requests.post("https://oauth2.googleapis.com/token", data={
+        "client_id": os.environ.get("CLIENT_ID"),
+        "client_secret": os.environ.get("CLIENT_SECRET"),
+        "refresh_token": os.environ.get("REFRESH_TOKEN"),
+        "grant_type": "refresh_token"
+    })
+    
+    if res.status_code != 200:
+        print("❌ Token Error:", res.text)
+        return
+    access_token = res.json()["access_token"]
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+        "X-Upload-Content-Length": str(os.path.getsize(video_path)),
+        "X-Upload-Content-Type": "video/mp4"
+    }
+    body = {
+        "snippet": {"title": metadata['title'][:100], "description": metadata['description'], "tags": metadata['tags'], "categoryId": "24"},
+        "status": {"privacyStatus": "public"}
+    }
+    
+    upload_url = "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status"
+    init_res = requests.post(upload_url, headers=headers, json=body)
+    
+    location = init_res.headers.get("Location")
+    if not location:
+        print("❌ Upload Init Failed:", init_res.text)
+        return
+
+    print("⏳ Pushing video data...")
+    with open(video_path, "rb") as f:
+        upload_res = requests.put(location, headers={"Authorization": f"Bearer {access_token}"}, data=f)
+    
+    if upload_res.status_code in [200, 201]:
+        print(f"🎉 SUCCESS! Video Live: https://youtu.be/{upload_res.json().get('id')}")
+    else:
+        print(f"❌ Upload Failed: {upload_res.text}")
+
+# ==========================================
+# 5. MAIN WORKFLOW
+# ==========================================
 
 def main():
-    # Saare credentials check ho rahe hain taaki error na aaye
-    required_keys = ["GEMINI_API_KEY", "CLIENT_ID", "CLIENT_SECRET", "REFRESH_TOKEN"]
-    for key in required_keys:
-        if not os.environ.get(key):
-            print(f"❌ {key} Missing in environment variables!")
-            return
+    if not all(os.environ.get(k) for k in ["GEMINI_API_KEY", "CLIENT_ID", "CLIENT_SECRET", "REFRESH_TOKEN"]):
+        print("❌ Missing API Keys in Environment Variables!")
+        return
 
-    print("🚀 Starting Fast Automation with YouTube Upload...")
-    bg_music_path = download_background_music()
-    data = generate_long_audiobook_script()
-    bg_img_path = generate_dark_canvas_image(data['metadata']['title'], "cover.png")
+    print("🚀 Starting Fully Automated Audiobook Generator...")
+    bg_music = download_background_music()
     
-    video_path = build_long_video(data, bg_img_path, bg_music_path)
+    # Get Outline from Gemini
+    print("🧠 Fetching Story Outline...")
+    prompt = """Create an outline for a Hinglish Mystery Horror story. Divide into 5 Chapters. Output JSON ONLY:
+    {"metadata": {"title": "Unsolved Mystery - Hindi Audiobook", "description": "Listen to this gripping story. #audiobook #hindi", "tags": ["audiobook", "hindi story", "thriller"]}, "chapters": [{"chapter_num": 1, "topic": "The Strange Discovery"}, {"chapter_num": 2, "topic": "Shadows"}, {"chapter_num": 3, "topic": "Darkness"}, {"chapter_num": 4, "topic": "Secret"}, {"chapter_num": 5, "topic": "Final Truth"}]}"""
     
-    # Ye line maine uncomment kar di hai, ab upload hoga!
-    upload_to_youtube(video_path, data['metadata']) 
-    
-    print("✅ Workflow Complete!")
+    raw = call_gemini(prompt)
+    if raw.startswith("```json"): raw = raw[7:-3]
+    script_data = json.loads(raw.strip())
+
+    # Generate 5 Chapters Text (Fast Parallel Processing)
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        expanded_chapters = list(executor.map(generate_chapter_data, script_data['chapters']))
+        
+    # Build Video and Upload
+    video_path = build_full_movie(expanded_chapters, bg_music)
+    upload_to_youtube_lightweight(video_path, script_data['metadata'])
+    print("✅ Workflow 100% Complete!")
 
 if __name__ == "__main__":
     main()
