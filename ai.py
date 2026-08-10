@@ -100,13 +100,13 @@ def generate_long_audiobook_script():
     print("🧠 Outlining Story via Gemini API...")
     genres = ["Mystery Horror", "Psychological Thriller"]
     outline_prompt = f"""You are a YouTube Creator. Create an outline for a long Hinglish story in '{random.choice(genres)}'. Divide into 5 Chapters. Output JSON ONLY:
-    {{"metadata": {{"title": "Title here", "description": "Desc here", "tags": ["tag1"]}}, "chapters": [{{"chapter_num": 1, "topic": "Topic"}}]}}"""
+    {{"metadata": {{"title": "Unsolved Mystery - Hindi Full Audiobook Story", "description": "Listen to this long gripping audiobook story in Hindi. #audiobook #hindi #story #mystery", "tags": ["audiobook", "hindi story", "thriller", "full story"]}}, "chapters": [{{"chapter_num": 1, "topic": "The Strange Discovery"}}, {{"chapter_num": 2, "topic": "The Unseen Shadows"}}, {{"chapter_num": 3, "topic": "Deeper Into The Darkness"}}, {{"chapter_num": 4, "topic": "The Shocking Secret"}}, {{"chapter_num": 5, "topic": "Final Truth Revealed"}}]}}"""
     
     outline_raw = call_gemini(outline_prompt)
     if outline_raw.startswith("```json"): outline_raw = outline_raw[7:-3]
     script_data = json.loads(outline_raw.strip())
 
-    # 🔥 PARALLEL API CALLS (Bahut time bachega isse)
+    # Parallel API Calls for speed
     with ThreadPoolExecutor(max_workers=5) as executor:
         chapters_text = list(executor.map(generate_chapter, script_data['chapters']))
 
@@ -114,7 +114,7 @@ def generate_long_audiobook_script():
     return script_data
 
 async def generate_tts_file(text, filename):
-    communicate = edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+5%") # Increased speed slightly
+    communicate = edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+5%")
     await communicate.save(filename)
 
 def build_long_video(data, bg_img_path, bg_music_path):
@@ -126,7 +126,7 @@ def build_long_video(data, bg_img_path, bg_music_path):
     total_duration = voice_clip.duration
     print(f"⏱️ Duration: {round(total_duration / 60, 2)} Mins")
 
-    # 🔥 ZOOM EFFECT REMOVED! Only Static image (Lightning Fast Render)
+    # Static Image (Fast Render)
     bg_clip = ImageClip(bg_img_path).resize(width=1920, height=1080).set_duration(total_duration)
 
     if bg_music_path and os.path.exists(bg_music_path):
@@ -140,9 +140,9 @@ def build_long_video(data, bg_img_path, bg_music_path):
     final_video = CompositeVideoClip([bg_clip]).set_audio(final_audio)
 
     output_filename = "long_audiobook_video.mp4"
-    print("🎬 Rendering Final MP4 Video... (This will be much faster now)")
+    print("🎬 Rendering Final MP4 Video... (Fast mode)")
     
-    # 🔥 FPS REDUCED TO 1 (Since it's a static image)
+    # 1 FPS for instant render
     final_video.write_videofile(
         output_filename, 
         fps=1, 
@@ -155,22 +155,59 @@ def build_long_video(data, bg_img_path, bg_music_path):
     return output_filename
 
 def upload_to_youtube(video_path, metadata):
-    print(f"🚀 Uploading to YouTube: {metadata['title']}")
-    # YouTube upload logic remains same
-    pass
+    print(f"🚀 Uploading Long Video to YouTube: {metadata['title']}")
+    try:
+        # Aapka original YouTube upload logic add kar diya gaya hai
+        token_url = get_url("aHR0cHM6Ly9vYXV0aDIuZ29vZ2xlYXBpcy5jb20vdG9rZW4=")
+        creds = Credentials(
+            None, 
+            refresh_token=os.environ.get("REFRESH_TOKEN"), 
+            token_uri=token_url, 
+            client_id=os.environ.get("CLIENT_ID"), 
+            client_secret=os.environ.get("CLIENT_SECRET")
+        )
+
+        youtube = build("youtube", "v3", credentials=creds)
+        body = {
+            "snippet": {
+                "title": metadata['title'][:100], 
+                "description": metadata['description'], 
+                "tags": metadata['tags'], 
+                "categoryId": "24"
+            },
+            "status": {
+                "privacyStatus": "public", 
+                "selfDeclaredMadeForKids": False
+            }
+        }
+        req = youtube.videos().insert(
+            part="snippet,status", 
+            body=body, 
+            media_body=MediaFileUpload(video_path, chunksize=-1, resumable=True)
+        )
+        response = req.execute()
+        print("🎉 SUCCESS! Long Audiobook Uploaded! Video ID:", response['id'])
+    except Exception as e:
+        print(f"❌ YouTube Upload Failed: {e}")
 
 def main():
-    if not GEMINI_API_KEY:
-        print("❌ GEMINI_API_KEY Missing!")
-        return
+    # Saare credentials check ho rahe hain taaki error na aaye
+    required_keys = ["GEMINI_API_KEY", "CLIENT_ID", "CLIENT_SECRET", "REFRESH_TOKEN"]
+    for key in required_keys:
+        if not os.environ.get(key):
+            print(f"❌ {key} Missing in environment variables!")
+            return
 
-    print("🚀 Starting Fast Automation...")
+    print("🚀 Starting Fast Automation with YouTube Upload...")
     bg_music_path = download_background_music()
     data = generate_long_audiobook_script()
     bg_img_path = generate_dark_canvas_image(data['metadata']['title'], "cover.png")
     
     video_path = build_long_video(data, bg_img_path, bg_music_path)
-    # upload_to_youtube(video_path, data['metadata']) 
+    
+    # Ye line maine uncomment kar di hai, ab upload hoga!
+    upload_to_youtube(video_path, data['metadata']) 
+    
     print("✅ Workflow Complete!")
 
 if __name__ == "__main__":
