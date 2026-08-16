@@ -23,7 +23,6 @@ import json
 import random
 import urllib.parse
 import asyncio
-import base64
 import edge_tts
 from PIL import Image, ImageDraw, ImageFont
 from concurrent.futures import ThreadPoolExecutor
@@ -34,9 +33,6 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 # 2. HELPER FUNCTIONS
 # ==========================================
 
-def get_url(b64_string):
-    return base64.b64decode(b64_string).decode("utf-8")
-
 def get_fake_headers():
     return {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
@@ -44,10 +40,15 @@ def download_font():
     font_path = "BoldFont.ttf"
     if not os.path.exists(font_path):
         print("📥 Downloading Font for Slides...")
-        url = get_url("aHR0cHM6Ly9naXRodWIuY29tL2dvb2dsZS9mb250cy9yYXcvbWFpbi9vZmwvbW9udHNlcnJhdC9Nb250c2VycmF0LUJsYWNrLnR0Zg==")
-        res = requests.get(url, headers=get_fake_headers(), timeout=15)
-        if res.status_code == 200:
-            with open(font_path, 'wb') as f: f.write(res.content)
+        # Direct stable link to Google's Roboto Black font
+        url = "https://github.com/google/fonts/raw/main/ofl/roboto/Roboto-Black.ttf"
+        try:
+            res = requests.get(url, headers=get_fake_headers(), timeout=15)
+            if res.status_code == 200:
+                with open(font_path, 'wb') as f: f.write(res.content)
+        except Exception as e:
+            print(f"⚠️ Font download failed: {e}")
+            
     return font_path if os.path.exists(font_path) else None
 
 def download_background_music():
@@ -98,17 +99,18 @@ async def generate_tts(text, filename):
 def get_job_vacancy_from_gemini():
     print("🔍 Asking Gemini AI for Latest Job Vacancy...")
     
-    # Check already posted jobs
     past_jobs = ""
     if os.path.exists("posted_jobs.txt"):
         with open("posted_jobs.txt", "r") as f:
             past_jobs = f.read()
 
+    # EMOJIS REMOVED FROM PROMPT TO PREVENT CRASHES!
     prompt = f"""
     You are an expert YouTube Education Job Updates Creator. 
     Provide details for a popular Indian Government or Top Private Sector Job Vacancy (like SSC, Railway, Bank, UPSC, Defence) expected or currently active in 2026.
     
-    CRITICAL RULE: DO NOT use any of these jobs that I have already covered: {past_jobs}
+    CRITICAL RULE 1: DO NOT use any of these jobs that I have already covered: {past_jobs}
+    CRITICAL RULE 2: STRICTLY DO NOT USE ANY EMOJIS in the JSON output. Keep text clean and plain.
     
     Generate JSON exactly in this format. The narration must be an engaging Hinglish voiceover script for that specific slide.
     {{
@@ -119,10 +121,10 @@ def get_job_vacancy_from_gemini():
         "job_name_for_database": "[Short Job Name, e.g., SSC CGL]"
       }},
       "slides": [
-        {{"title": "🚨 NEW VACANCY OUT", "points": ["Post: [Job Name]", "Total Vacancies: [Number]"], "narration": "Namaskar dosto, aaj ek bahut badi vacancy aayi hai..."}},
-        {{"title": "📅 IMPORTANT DATES", "points": ["Start Date: [Date]", "Last Date: [Date]"], "narration": "Form bharne ki tarikh shuru ho rahi hai..."}},
-        {{"title": "💰 FEES & SALARY", "points": ["Gen/OBC Fee: [Amount]", "Salary: [Amount]"], "narration": "Fees ki baat karein toh..."}},
-        {{"title": "🎓 ELIGIBILITY", "points": ["Age Limit: [Age]", "Qualification: [Qualification]"], "narration": "Eligibility criteria me..."}}
+        {{"title": "NEW VACANCY OUT", "points": ["Post: [Job Name]", "Total Vacancies: [Number]"], "narration": "Namaskar dosto, aaj ek bahut badi vacancy aayi hai..."}},
+        {{"title": "IMPORTANT DATES", "points": ["Start Date: [Date]", "Last Date: [Date]"], "narration": "Form bharne ki tarikh shuru ho rahi hai..."}},
+        {{"title": "FEES & SALARY", "points": ["Gen/OBC Fee: [Amount]", "Salary: [Amount]"], "narration": "Fees ki baat karein toh..."}},
+        {{"title": "ELIGIBILITY", "points": ["Age Limit: [Age]", "Qualification: [Qualification]"], "narration": "Eligibility criteria me..."}}
       ]
     }}
     """
@@ -141,17 +143,25 @@ def generate_job_slide_image(slide_data, font_path, slide_index):
     w, h = 1920, 1080
     img = Image.new('RGB', (w, h), color=(15, 32, 39)) 
     draw = ImageDraw.Draw(img)
+    
     try: title_font = ImageFont.truetype(font_path, 90)
     except: title_font = ImageFont.load_default()
+    
     try: text_font = ImageFont.truetype(font_path, 60)
     except: text_font = ImageFont.load_default()
 
-    draw.text((100, 150), slide_data['title'], font=title_font, fill=(255, 215, 0))
+    # Clean text function to ensure no stray characters crash PIL
+    def safe_text(txt): return txt.encode('ascii', 'ignore').decode('ascii')
+
+    title_text = safe_text(slide_data.get('title', 'UPDATE'))
+    draw.text((100, 150), title_text, font=title_font, fill=(255, 215, 0))
     draw.line([(100, 260), (1000, 260)], fill=(255, 215, 0), width=8)
 
     y_pos = 350
-    for point in slide_data['points']:
-        draw.text((100, y_pos), f"👉 {point}", font=text_font, fill=(240, 240, 240))
+    for point in slide_data.get('points', []):
+        pt_text = safe_text(point)
+        # Using ">> " instead of "👉 " to avoid Unicode errors
+        draw.text((100, y_pos), f">>  {pt_text}", font=text_font, fill=(240, 240, 240))
         y_pos += 120
 
     filename = f"job_slide_{slide_index}.png"
@@ -240,7 +250,6 @@ def assemble_final_video(parts_data, bg_music=None, is_job=False):
 def upload_to_youtube_lightweight(video_path, metadata, category_id="24"):
     print(f"🚀 Uploading to YouTube: {metadata['title']}")
     
-    # FIXED URL: Removed the markdown brackets that caused the InvalidSchema error
     token_url = "[https://oauth2.googleapis.com/token](https://oauth2.googleapis.com/token)"
     
     res = requests.post(token_url, data={
@@ -266,7 +275,6 @@ def upload_to_youtube_lightweight(video_path, metadata, category_id="24"):
         "status": {"privacyStatus": "public"}
     }
 
-    # FIXED URL here as well just to be safe
     upload_url = "[https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status](https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status)"
     init_res = requests.post(upload_url, headers=headers, json=body)
 
@@ -294,8 +302,6 @@ def main():
 
     print("🚀 Starting Fully Automated Creator Bot...")
     
-    # Random Logic: Let's try to make a Job video mostly, but sometimes Audiobook
-    # Here, we will ALWAYS try to make a Job Video first.
     job_data = get_job_vacancy_from_gemini()
     
     if job_data:
@@ -313,7 +319,6 @@ def main():
         video_path = assemble_final_video(parts_data, bg_music=None, is_job=True)
         upload_to_youtube_lightweight(video_path, job_data['metadata'], category_id="27")
         
-        # Save to database so Gemini doesn't repeat this job tomorrow
         job_name = job_data['metadata'].get('job_name_for_database', 'Unknown Job')
         with open("posted_jobs.txt", "a") as f:
             f.write(f"{job_name}\n")
@@ -321,7 +326,6 @@ def main():
         print("✅ Education Job Workflow Complete!")
         
     else:
-        # Fallback to Audiobook if Gemini fails to make a Job for some reason
         print("⚠️ Gemini couldn't generate a Job. Falling back to Audiobook Generator...")
         bg_music = download_background_music()
 
