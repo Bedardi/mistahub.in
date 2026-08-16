@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import base64
+import textwrap
 
 # ==========================================
 # 1. AUTO-INSTALLER
@@ -25,6 +26,7 @@ import random
 import urllib.parse
 import asyncio
 import edge_tts
+from edge_tts import SubMaker
 from PIL import Image, ImageDraw, ImageFont
 from concurrent.futures import ThreadPoolExecutor
 
@@ -33,8 +35,6 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 # ==========================================
 # 2. HELPER FUNCTIONS & DECODERS
 # ==========================================
-
-# Base64 Decoder (Completely hides URLs from chat UI formatting)
 def get_safe_url(b64_string):
     return base64.b64decode(b64_string).decode("utf-8")
 
@@ -45,7 +45,6 @@ def download_font():
     font_path = "BoldFont.ttf"
     if not os.path.exists(font_path):
         print("📥 Downloading Font for Slides...")
-        # Decodes to the Google Font raw URL
         url = get_safe_url("aHR0cHM6Ly9naXRodWIuY29tL2dvb2dsZS9mb250cy9yYXcvbWFpbi9vZmwvcm9ib3RvL1JvYm90by1CbGFjay50dGY=")
         try:
             res = requests.get(url, headers=get_fake_headers(), timeout=15)
@@ -53,12 +52,10 @@ def download_font():
                 with open(font_path, 'wb') as f: f.write(res.content)
         except Exception as e:
             print(f"⚠️ Font download failed: {e}")
-            
     return font_path if os.path.exists(font_path) else None
 
 def download_background_music():
     print("🎵 Downloading Ambient BGM...")
-    # Decodes to the Pixabay audio URL
     url = get_safe_url("aHR0cHM6Ly9jZG4ucGl4YWJheS5jb20vZG93bmxvYWQvYXVkaW8vMjAyMi8wMy8xNS9hdWRpb181MTE2ZmMwMWMxLm1wMz9maWxlbmFtZT1kYXJrLWFtYmllbnQtMTA3Nzc0Lm1wMw==")
     music_path = "ambient_bg.mp3"
     try:
@@ -70,7 +67,6 @@ def download_background_music():
 
 def call_gemini(prompt):
     models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"]
-    # Decodes to Gemini API base
     base_api = get_safe_url("aHR0cHM6Ly9nZW5lcmF0aXZlbGFuZ3VhZ2UuZ29vZ2xlYXBpcy5jb20vdjFiZXRhL21vZGVscy8=")
     
     for model in models:
@@ -85,9 +81,8 @@ def call_gemini(prompt):
     return ""
 
 def generate_pollinations_image(prompt, filename):
-    print(f"🎨 Generating AI Image via Pollinations: {filename}...")
-    safe_prompt = urllib.parse.quote("Dark cinematic mystery horror realistic, " + prompt)
-    # Decodes to Pollinations AI base
+    print(f"🎨 Generating AI Background: {filename}...")
+    safe_prompt = urllib.parse.quote("Dark cinematic professional realistic, " + prompt)
     base_img = get_safe_url("aHR0cHM6Ly9pbWFnZS5wb2xsaW5hdGlvbnMuYWkvcHJvbXB0Lw==")
     url = f"{base_img}{safe_prompt}?width=1920&height=1080&nologo=true"
     
@@ -97,40 +92,41 @@ def generate_pollinations_image(prompt, filename):
             with open(filename, 'wb') as f: f.write(res.content)
             return filename
     except: pass
-    img = Image.new('RGB', (1920, 1080), color=(15, 15, 15))
+    img = Image.new('RGB', (1920, 1080), color=(15, 20, 25))
     img.save(filename)
     return filename
 
-async def generate_tts(text, filename):
-    await edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+3%").save(filename)
+# LIP-SYNC CAPTIONS GENERATOR (Audio + VTT)
+async def generate_tts_with_subs(text, audio_filename, vtt_filename):
+    communicate = edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+3%")
+    submaker = SubMaker()
+    with open(audio_filename, "wb") as file:
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                file.write(chunk["data"])
+            elif chunk["type"] == "WordBoundary":
+                submaker.create_sub((chunk["offset"], chunk["duration"]), chunk["text"])
+    with open(vtt_filename, "w", encoding="utf-8") as file:
+        file.write(submaker.generate_subs())
 
 # ==========================================
 # 3. GEMINI DIRECT JOB GENERATOR
 # ==========================================
-
 def get_job_vacancy_from_gemini():
     print("🔍 Asking Gemini AI for Latest Job Vacancy...")
-    
     past_jobs = ""
     if os.path.exists("posted_jobs.txt"):
-        with open("posted_jobs.txt", "r") as f:
-            past_jobs = f.read()
+        with open("posted_jobs.txt", "r") as f: past_jobs = f.read()
 
     prompt = f"""
     You are an expert YouTube Education Job Updates Creator. 
-    Provide details for a popular Indian Government or Top Private Sector Job Vacancy (like SSC, Railway, Bank, UPSC, Defence) expected or currently active in 2026.
+    Provide details for a popular Indian Government or Top Private Sector Job Vacancy expected or active in 2026.
+    CRITICAL RULE 1: DO NOT use jobs already covered: {past_jobs}
+    CRITICAL RULE 2: STRICTLY DO NOT USE ANY EMOJIS in the JSON output. Keep text clean.
     
-    CRITICAL RULE 1: DO NOT use any of these jobs that I have already covered: {past_jobs}
-    CRITICAL RULE 2: STRICTLY DO NOT USE ANY EMOJIS in the JSON output. Keep text clean and plain.
-    
-    Generate JSON exactly in this format. The narration must be an engaging Hinglish voiceover script for that specific slide.
+    Generate JSON exactly in this format. The narration must be Hinglish script.
     {{
-      "metadata": {{
-        "title": "[Job Name] Recruitment 2026 | Eligibility, Age, Salary | Full Details",
-        "description": "Full details about this new job vacancy...",
-        "tags": ["sarkari naukri", "job update", "education", "latest jobs", "2026 jobs"],
-        "job_name_for_database": "[Short Job Name, e.g., SSC CGL]"
-      }},
+      "metadata": {{"title": "[Job Name] Recruitment 2026 | Eligibility, Age, Salary | Full Details", "description": "Full details...", "tags": ["sarkari naukri", "job update", "education", "latest jobs", "2026 jobs"], "job_name_for_database": "SSC CGL"}},
       "slides": [
         {{"title": "NEW VACANCY OUT", "points": ["Post: [Job Name]", "Total Vacancies: [Number]"], "narration": "Namaskar dosto, aaj ek bahut badi vacancy aayi hai..."}},
         {{"title": "IMPORTANT DATES", "points": ["Start Date: [Date]", "Last Date: [Date]"], "narration": "Form bharne ki tarikh shuru ho rahi hai..."}},
@@ -139,42 +135,60 @@ def get_job_vacancy_from_gemini():
       ]
     }}
     """
-    
     response = call_gemini(prompt)
     if response.startswith("```json"): response = response[7:-3]
-    
-    try:
-        data = json.loads(response.strip())
-        return data
-    except Exception as e:
-        print(f"⚠️ Gemini failed to generate proper Job JSON: {e}")
-        return None
+    try: return json.loads(response.strip())
+    except: return None
 
+# BADA-BADA CENTERED TEXT OVERLAY FUNCTION
 def generate_job_slide_image(slide_data, font_path, slide_index):
     w, h = 1920, 1080
-    img = Image.new('RGB', (w, h), color=(15, 32, 39)) 
+    
+    # 1. Get an AI Background Image (Office/Workspace)
+    bg_file = generate_pollinations_image("Professional corporate office building dark interior", f"bg_temp_{slide_index}.jpg")
+    img = Image.open(bg_file).convert('RGBA')
+    
+    # 2. Add Dark Transparent Overlay (makes text pop)
+    overlay = Image.new('RGBA', img.size, (10, 15, 20, 200)) # 200/255 darkness
+    img = Image.alpha_composite(img, overlay)
     draw = ImageDraw.Draw(img)
     
-    try: title_font = ImageFont.truetype(font_path, 90)
+    # 3. Massive Fonts
+    try: title_font = ImageFont.truetype(font_path, 130)
     except: title_font = ImageFont.load_default()
-    
-    try: text_font = ImageFont.truetype(font_path, 60)
+    try: text_font = ImageFont.truetype(font_path, 80)
     except: text_font = ImageFont.load_default()
 
     def safe_text(txt): return txt.encode('ascii', 'ignore').decode('ascii')
 
+    # 4. Center Title
     title_text = safe_text(slide_data.get('title', 'UPDATE'))
-    draw.text((100, 150), title_text, font=title_font, fill=(255, 215, 0))
-    draw.line([(100, 260), (1000, 260)], fill=(255, 215, 0), width=8)
+    try: bbox = draw.textbbox((0, 0), title_text, font=title_font); tw = bbox[2] - bbox[0]
+    except: tw = title_font.getlength(title_text)
+    
+    title_x = (w - tw) / 2
+    title_y = 150
+    draw.text((title_x, title_y), title_text, font=title_font, fill=(255, 215, 0))
+    
+    # Draw Centered Yellow Line under Title
+    draw.line([(title_x, title_y + 160), (title_x + tw, title_y + 160)], fill=(255, 215, 0), width=10)
 
-    y_pos = 350
+    # 5. Center Points (with auto-wrap so it doesn't go off-screen)
+    y_pos = 420
     for point in slide_data.get('points', []):
         pt_text = safe_text(point)
-        draw.text((100, y_pos), f">>  {pt_text}", font=text_font, fill=(240, 240, 240))
-        y_pos += 120
+        # Wrap text if it's too long
+        lines = textwrap.wrap(pt_text, width=40)
+        for line in lines:
+            line = f"  {line}"
+            try: bbox = draw.textbbox((0, 0), line, font=text_font); lw = bbox[2] - bbox[0]
+            except: lw = text_font.getlength(line)
+            draw.text(((w - lw) / 2, y_pos), line, font=text_font, fill=(240, 240, 240))
+            y_pos += 110
+        y_pos += 40 # Extra space between different points
 
     filename = f"job_slide_{slide_index}.png"
-    img.save(filename)
+    img.convert('RGB').save(filename)
     return filename
 
 # ==========================================
@@ -187,14 +201,16 @@ def generate_audiobook_chapter_data(ch):
     return {"topic": ch['topic'], "text": narration}
 
 # ==========================================
-# 5. FFMPEG VIDEO ASSEMBLY
+# 5. FFMPEG VIDEO ASSEMBLY (With Lip Sync Subs)
 # ==========================================
-def build_chapter_video(image_path, audio_path, output_path):
-    print(f"⚡ Rendering {output_path} (Image + Audio)...")
+def build_chapter_video(image_path, audio_path, vtt_path, output_path):
+    print(f"⚡ Rendering {output_path} (Image + Audio + LipSync Captions)...")
+    # Adding Subtitles filter to FFMPEG!
     cmd = [
         "ffmpeg", "-y",
         "-loop", "1", "-framerate", "1", "-i", image_path,
         "-i", audio_path,
+        "-vf", f"subtitles={vtt_path}:force_style='FontSize=26,PrimaryColour=&H00FFFF,OutlineColour=&H000000,BorderStyle=1,Outline=2,Shadow=1,MarginV=40'",
         "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-shortest", output_path
     ]
@@ -206,23 +222,23 @@ def assemble_final_video(parts_data, bg_music=None, is_job=False):
 
     for idx, part in enumerate(parts_data):
         audio_file = f"temp_audio_{idx}.mp3"
+        vtt_file = f"temp_sub_{idx}.vtt"
         vid_file = f"temp_part_{idx}.mp4"
         
-        asyncio.run(generate_tts(part['text'], audio_file))
+        # Generate Audio and VTT (Subtitles) simultaneously
+        asyncio.run(generate_tts_with_subs(part['text'], audio_file, vtt_file))
         
         if is_job:
             img_file = generate_job_slide_image(part['slide_data'], part['font_path'], idx)
         else:
-            img_file = f"temp_img_{idx}.jpg"
-            generate_pollinations_image(part['topic'], img_file)
+            img_file = generate_pollinations_image(part['topic'], f"temp_img_{idx}.jpg")
 
-        build_chapter_video(img_file, audio_file, vid_file)
+        build_chapter_video(img_file, audio_file, vtt_file, vid_file)
         video_files.append(vid_file)
 
     print("🔗 Concatenating All Parts...")
     with open("concat.txt", "w") as f:
-        for vid in video_files:
-            f.write(f"file '{vid}'\n")
+        for vid in video_files: f.write(f"file '{vid}'\n")
 
     merged_vid = "merged_no_bgm.mp4"
     subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "concat.txt", "-c", "copy", merged_vid], 
@@ -245,8 +261,9 @@ def assemble_final_video(parts_data, bg_music=None, is_job=False):
         os.remove("concat.txt")
         for i in range(len(parts_data)):
             os.remove(f"temp_audio_{i}.mp3")
+            os.remove(f"temp_sub_{i}.vtt")
             os.remove(f"temp_part_{i}.mp4")
-            if is_job: os.remove(f"job_slide_{i}.png")
+            if is_job: os.remove(f"job_slide_{i}.png"); os.remove(f"bg_temp_{i}.jpg")
             else: os.remove(f"temp_img_{i}.jpg")
         if os.path.exists("merged_no_bgm.mp4"): os.remove("merged_no_bgm.mp4")
     except: pass
@@ -254,26 +271,21 @@ def assemble_final_video(parts_data, bg_music=None, is_job=False):
     return final_output
 
 # ==========================================
-# 6. YOUTUBE UPLOAD
+# 6. YOUTUBE UPLOAD (SAFE BASE64 URLS)
 # ==========================================
 def upload_to_youtube_lightweight(video_path, metadata, category_id="24"):
     print(f"🚀 Uploading to YouTube: {metadata['title']}")
-    
-    # Decodes to Google OAuth Token API
     token_url = get_safe_url("aHR0cHM6Ly9vYXV0aDIuZ29vZ2xlYXBpcy5jb20vdG9rZW4=")
-    
     res = requests.post(token_url, data={
         "client_id": os.environ.get("CLIENT_ID"),
         "client_secret": os.environ.get("CLIENT_SECRET"),
         "refresh_token": os.environ.get("REFRESH_TOKEN"),
         "grant_type": "refresh_token"
     })
-
     if res.status_code != 200:
         print("❌ Token Error:", res.text)
         return
     access_token = res.json()["access_token"]
-
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
@@ -284,20 +296,15 @@ def upload_to_youtube_lightweight(video_path, metadata, category_id="24"):
         "snippet": {"title": metadata['title'][:100], "description": metadata['description'], "tags": metadata['tags'], "categoryId": category_id},
         "status": {"privacyStatus": "public"}
     }
-
-    # Decodes to YouTube Upload API
     upload_url = get_safe_url("aHR0cHM6Ly93d3cuZ29vZ2xlYXBpcy5jb20vdXBsb2FkL3lvdXR1YmUvdjMvdmlkZW9zP3VwbG9hZFR5cGU9cmVzdW1hYmxlJnBhcnQ9c25pcHBldCxzdGF0dXM=")
     init_res = requests.post(upload_url, headers=headers, json=body)
-
     location = init_res.headers.get("Location")
     if not location:
         print("❌ Upload Init Failed:", init_res.text)
         return
-
     print("⏳ Pushing video data...")
     with open(video_path, "rb") as f:
         upload_res = requests.put(location, headers={"Authorization": f"Bearer {access_token}"}, data=f)
-
     if upload_res.status_code in [200, 201]:
         yt_base = get_safe_url("aHR0cHM6Ly95b3V0dS5iZS8=")
         print(f"🎉 SUCCESS! Video Live: {yt_base}{upload_res.json().get('id')}")
@@ -313,37 +320,27 @@ def main():
         return
 
     print("🚀 Starting Fully Automated Creator Bot...")
-    
     job_data = get_job_vacancy_from_gemini()
     
     if job_data:
         print("✅ Gemini successfully generated a Job Vacancy! Initiating Education Video...")
         font_path = download_font()
-        
         parts_data = []
         for slide in job_data['slides']:
-            parts_data.append({
-                "text": slide['narration'], 
-                "slide_data": slide,
-                "font_path": font_path
-            })
+            parts_data.append({"text": slide['narration'], "slide_data": slide, "font_path": font_path})
             
         video_path = assemble_final_video(parts_data, bg_music=None, is_job=True)
         upload_to_youtube_lightweight(video_path, job_data['metadata'], category_id="27")
         
         job_name = job_data['metadata'].get('job_name_for_database', 'Unknown Job')
-        with open("posted_jobs.txt", "a") as f:
-            f.write(f"{job_name}\n")
-            
+        with open("posted_jobs.txt", "a") as f: f.write(f"{job_name}\n")
         print("✅ Education Job Workflow Complete!")
         
     else:
         print("⚠️ Gemini couldn't generate a Job. Falling back to Audiobook Generator...")
         bg_music = download_background_music()
-
         prompt = """Create an outline for a Hinglish Mystery Horror story. Divide into 5 Chapters. Output JSON ONLY:
         {"metadata": {"title": "Unsolved Mystery - Hindi Audiobook", "description": "Listen to this gripping story. #audiobook #hindi", "tags": ["audiobook", "hindi story", "thriller"]}, "chapters": [{"chapter_num": 1, "topic": "The Strange Discovery"}, {"chapter_num": 2, "topic": "Shadows"}, {"chapter_num": 3, "topic": "Darkness"}, {"chapter_num": 4, "topic": "Secret"}, {"chapter_num": 5, "topic": "Final Truth"}]}"""
-
         raw = call_gemini(prompt)
         if raw.startswith("```json"): raw = raw[7:-3]
         script_data = json.loads(raw.strip())
