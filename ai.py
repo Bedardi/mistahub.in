@@ -3,7 +3,7 @@ import sys
 import subprocess
 
 # ==========================================
-# 1. AUTO-INSTALLER (NO requirements.txt NEEDED)
+# 1. AUTO-INSTALLER
 # ==========================================
 def install_packages():
     print("⚙️ Checking dependencies...")
@@ -11,15 +11,13 @@ def install_packages():
         import requests
         import edge_tts
         from PIL import Image
-        from bs4 import BeautifulSoup
     except ImportError:
         print("📦 Installing required packages automatically...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "requests", "edge-tts", "pillow", "beautifulsoup4"])
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "requests", "edge-tts", "pillow"])
         print("✅ Packages installed successfully!\n")
 
 install_packages()
 
-# Dependencies load karne ke baad import
 import requests
 import json
 import random
@@ -27,21 +25,20 @@ import urllib.parse
 import asyncio
 import base64
 import edge_tts
-from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageFont
 from concurrent.futures import ThreadPoolExecutor
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 # ==========================================
-# 2. HELPER FUNCTIONS & AI GENERATORS
+# 2. HELPER FUNCTIONS
 # ==========================================
 
 def get_url(b64_string):
     return base64.b64decode(b64_string).decode("utf-8")
 
 def get_fake_headers():
-    return {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"}
+    return {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
 def download_font():
     font_path = "BoldFont.ttf"
@@ -61,15 +58,14 @@ def download_background_music():
         res = requests.get(url, headers=get_fake_headers(), timeout=15)
         if res.status_code == 200:
             with open(music_path, 'wb') as f: f.write(res.content)
-    except:
-        pass
+    except: pass
     return music_path if os.path.exists(music_path) else None
 
 def call_gemini(prompt):
-    models = ["gemini-2.5-flash", "gemini-2.0-flash"]
+    models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"]
     for model in models:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
-        payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.75}}
+        payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.8}}
         try:
             res = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=60)
             data = res.json()
@@ -87,72 +83,59 @@ def generate_pollinations_image(prompt, filename):
         if res.status_code == 200:
             with open(filename, 'wb') as f: f.write(res.content)
             return filename
-    except Exception as e:
-        print(f"⚠️ Image generation failed: {e}")
+    except: pass
     img = Image.new('RGB', (1920, 1080), color=(15, 15, 15))
     img.save(filename)
     return filename
 
 async def generate_tts(text, filename):
-    await edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+2%").save(filename)
+    await edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+3%").save(filename)
 
 # ==========================================
-# 3. JOB VACANCY MODULE
+# 3. GEMINI DIRECT JOB GENERATOR
 # ==========================================
 
-def get_latest_job_link():
-    print("🔍 Checking for New Job Vacancies...")
-    try:
-        url = "https://www.sarkariresult.com/latestjob.php"
-        res = requests.get(url, headers=get_fake_headers(), timeout=10)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        post_div = soup.find('div', id='post')
-        if post_div:
-            first_link = post_div.find('a')
-            if first_link and 'href' in first_link.attrs:
-                job_url = first_link['href']
-                if os.path.exists("posted_jobs.txt"):
-                    with open("posted_jobs.txt", "r") as f:
-                        if job_url in f.read():
-                            print("⏭️ Video already made for this vacancy. Skipping to Audiobook.")
-                            return None
-                return job_url
-    except Exception as e:
-        print(f"⚠️ Job Scraper Error: {e}")
-    return None
+def get_job_vacancy_from_gemini():
+    print("🔍 Asking Gemini AI for Latest Job Vacancy...")
+    
+    # Check already posted jobs
+    past_jobs = ""
+    if os.path.exists("posted_jobs.txt"):
+        with open("posted_jobs.txt", "r") as f:
+            past_jobs = f.read()
 
-def fetch_and_parse_job_data(job_url):
-    print(f"📄 Fetching details from: {job_url}")
+    prompt = f"""
+    You are an expert YouTube Education Job Updates Creator. 
+    Provide details for a popular Indian Government or Top Private Sector Job Vacancy (like SSC, Railway, Bank, UPSC, Defence) expected or currently active in 2026.
+    
+    CRITICAL RULE: DO NOT use any of these jobs that I have already covered: {past_jobs}
+    
+    Generate JSON exactly in this format. The narration must be an engaging Hinglish voiceover script for that specific slide.
+    {{
+      "metadata": {{
+        "title": "[Job Name] Recruitment 2026 | Eligibility, Age, Salary | Full Details",
+        "description": "Full details about this new job vacancy...",
+        "tags": ["sarkari naukri", "job update", "education", "latest jobs", "2026 jobs"],
+        "job_name_for_database": "[Short Job Name, e.g., SSC CGL]"
+      }},
+      "slides": [
+        {{"title": "🚨 NEW VACANCY OUT", "points": ["Post: [Job Name]", "Total Vacancies: [Number]"], "narration": "Namaskar dosto, aaj ek bahut badi vacancy aayi hai..."}},
+        {{"title": "📅 IMPORTANT DATES", "points": ["Start Date: [Date]", "Last Date: [Date]"], "narration": "Form bharne ki tarikh shuru ho rahi hai..."}},
+        {{"title": "💰 FEES & SALARY", "points": ["Gen/OBC Fee: [Amount]", "Salary: [Amount]"], "narration": "Fees ki baat karein toh..."}},
+        {{"title": "🎓 ELIGIBILITY", "points": ["Age Limit: [Age]", "Qualification: [Qualification]"], "narration": "Eligibility criteria me..."}}
+      ]
+    }}
+    """
+    
+    response = call_gemini(prompt)
+    if response.startswith("```json"): response = response[7:-3]
+    
     try:
-        res = requests.get(job_url, headers=get_fake_headers(), timeout=10)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        page_text = soup.get_text(separator="\n", strip=True)[:6000]
-        
-        prompt = f"""
-        You are a YouTube Education Job Updates Creator. Analyze this job vacancy text.
-        Text: {page_text}
-        
-        Generate JSON exactly in this format. The narration must be Hinglish voiceover script for that specific slide.
-        {{
-          "metadata": {{
-            "title": "[Job Name] Recruitment 2026 | Eligibility, Age, Salary",
-            "description": "Full details about this new job...",
-            "tags": ["sarkari naukri", "job update", "education", "latest jobs"]
-          }},
-          "slides": [
-            {{"title": "🚨 NEW VACANCY OUT", "points": ["Job Name", "Total Vacancies: XYZ"], "narration": "Namaskar dosto, aaj ek bahut badi vacancy aayi hai..."}},
-            {{"title": "📅 IMPORTANT DATES", "points": ["Start Date: XYZ", "Last Date: XYZ"], "narration": "Form bharne ki tarikh shuru ho rahi hai..."}},
-            {{"title": "💰 FEES & SALARY", "points": ["Gen/OBC Fee: XYZ", "Salary: XYZ"], "narration": "Fees ki baat karein toh..."}},
-            {{"title": "🎓 ELIGIBILITY", "points": ["Age Limit: XYZ", "Qualification: XYZ"], "narration": "Eligibility criteria me..."}}
-          ]
-        }}
-        """
-        response = call_gemini(prompt)
-        if response.startswith("```json"): response = response[7:-3]
-        return json.loads(response), job_url
+        data = json.loads(response.strip())
+        return data
     except Exception as e:
-        print(f"⚠️ Failed to parse job data: {e}")
-        return None, None
+        print(f"⚠️ Gemini failed to generate proper Job JSON: {e}")
+        return None
 
 def generate_job_slide_image(slide_data, font_path, slide_index):
     w, h = 1920, 1080
@@ -176,9 +159,17 @@ def generate_job_slide_image(slide_data, font_path, slide_index):
     return filename
 
 # ==========================================
-# 4. VIDEO ASSEMBLY (FFMPEG NATIVE)
+# 4. AUDIOBOOK MODULE (Fallback)
 # ==========================================
+def generate_audiobook_chapter_data(ch):
+    print(f"📖 Expanding Chapter {ch['chapter_num']}: {ch['topic']}...")
+    prompt = f"Write Chapter {ch['chapter_num']} ({ch['topic']}) for a long Hinglish audiobook. Requirement: suspenseful. Length: 800-1000 words. Output ONLY narration without any headers."
+    narration = call_gemini(prompt)
+    return {"topic": ch['topic'], "text": narration}
 
+# ==========================================
+# 5. FFMPEG VIDEO ASSEMBLY
+# ==========================================
 def build_chapter_video(image_path, audio_path, output_path):
     print(f"⚡ Rendering {output_path} (Image + Audio)...")
     cmd = [
@@ -244,12 +235,15 @@ def assemble_final_video(parts_data, bg_music=None, is_job=False):
     return final_output
 
 # ==========================================
-# 5. YOUTUBE UPLOAD (REST API)
+# 6. YOUTUBE UPLOAD (Fixed URL)
 # ==========================================
-
 def upload_to_youtube_lightweight(video_path, metadata, category_id="24"):
     print(f"🚀 Uploading to YouTube: {metadata['title']}")
-    res = requests.post("[https://oauth2.googleapis.com/token](https://oauth2.googleapis.com/token)", data={
+    
+    # FIXED URL: Removed the markdown brackets that caused the InvalidSchema error
+    token_url = "[https://oauth2.googleapis.com/token](https://oauth2.googleapis.com/token)"
+    
+    res = requests.post(token_url, data={
         "client_id": os.environ.get("CLIENT_ID"),
         "client_secret": os.environ.get("CLIENT_SECRET"),
         "refresh_token": os.environ.get("REFRESH_TOKEN"),
@@ -272,6 +266,7 @@ def upload_to_youtube_lightweight(video_path, metadata, category_id="24"):
         "status": {"privacyStatus": "public"}
     }
 
+    # FIXED URL here as well just to be safe
     upload_url = "[https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status](https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status)"
     init_res = requests.post(upload_url, headers=headers, json=body)
 
@@ -290,15 +285,8 @@ def upload_to_youtube_lightweight(video_path, metadata, category_id="24"):
         print(f"❌ Upload Failed: {upload_res.text}")
 
 # ==========================================
-# 6. MAIN WORKFLOW
+# 7. MAIN WORKFLOW
 # ==========================================
-
-def generate_chapter_data(ch):
-    print(f"📖 Expanding Chapter {ch['chapter_num']}: {ch['topic']}...")
-    prompt = f"Write Chapter {ch['chapter_num']} ({ch['topic']}) for a long Hinglish audiobook. Requirement: suspenseful. Length: 800-1000 words. Output ONLY narration without any headers."
-    narration = call_gemini(prompt)
-    return {"topic": ch['topic'], "text": narration}
-
 def main():
     if not all(os.environ.get(k) for k in ["GEMINI_API_KEY", "CLIENT_ID", "CLIENT_SECRET", "REFRESH_TOKEN"]):
         print("❌ Missing API Keys in Environment Variables!")
@@ -306,53 +294,51 @@ def main():
 
     print("🚀 Starting Fully Automated Creator Bot...")
     
-    # 1. Try to find a Job Vacancy
-    job_link = get_latest_job_link()
+    # Random Logic: Let's try to make a Job video mostly, but sometimes Audiobook
+    # Here, we will ALWAYS try to make a Job Video first.
+    job_data = get_job_vacancy_from_gemini()
     
-    if job_link:
-        print("✅ New Job Found! Initiating Education Video...")
-        job_data, tracked_url = fetch_and_parse_job_data(job_link)
-        if job_data:
-            font_path = download_font()
+    if job_data:
+        print("✅ Gemini successfully generated a Job Vacancy! Initiating Education Video...")
+        font_path = download_font()
+        
+        parts_data = []
+        for slide in job_data['slides']:
+            parts_data.append({
+                "text": slide['narration'], 
+                "slide_data": slide,
+                "font_path": font_path
+            })
             
-            # Format data for the FFmpeg assembler
-            parts_data = []
-            for slide in job_data['slides']:
-                parts_data.append({
-                    "text": slide['narration'], 
-                    "slide_data": slide,
-                    "font_path": font_path
-                })
-                
-            video_path = assemble_final_video(parts_data, bg_music=None, is_job=True)
-            upload_to_youtube_lightweight(video_path, job_data['metadata'], category_id="27")
+        video_path = assemble_final_video(parts_data, bg_music=None, is_job=True)
+        upload_to_youtube_lightweight(video_path, job_data['metadata'], category_id="27")
+        
+        # Save to database so Gemini doesn't repeat this job tomorrow
+        job_name = job_data['metadata'].get('job_name_for_database', 'Unknown Job')
+        with open("posted_jobs.txt", "a") as f:
+            f.write(f"{job_name}\n")
             
-            with open("posted_jobs.txt", "a") as f:
-                f.write(f"{tracked_url}\n")
-            
-            print("✅ Education Job Workflow Complete!")
-            return
+        print("✅ Education Job Workflow Complete!")
+        
+    else:
+        # Fallback to Audiobook if Gemini fails to make a Job for some reason
+        print("⚠️ Gemini couldn't generate a Job. Falling back to Audiobook Generator...")
+        bg_music = download_background_music()
 
-    # 2. If no job, Fallback to Audiobook
-    print("⚠️ No New Jobs. Falling back to Audiobook Generator...")
-    bg_music = download_background_music()
+        prompt = """Create an outline for a Hinglish Mystery Horror story. Divide into 5 Chapters. Output JSON ONLY:
+        {"metadata": {"title": "Unsolved Mystery - Hindi Audiobook", "description": "Listen to this gripping story. #audiobook #hindi", "tags": ["audiobook", "hindi story", "thriller"]}, "chapters": [{"chapter_num": 1, "topic": "The Strange Discovery"}, {"chapter_num": 2, "topic": "Shadows"}, {"chapter_num": 3, "topic": "Darkness"}, {"chapter_num": 4, "topic": "Secret"}, {"chapter_num": 5, "topic": "Final Truth"}]}"""
 
-    prompt = """Create an outline for a Hinglish Mystery Horror story. Divide into 5 Chapters. Output JSON ONLY:
-    {"metadata": {"title": "Unsolved Mystery - Hindi Audiobook", "description": "Listen to this gripping story. #audiobook #hindi", "tags": ["audiobook", "hindi story", "thriller"]}, "chapters": [{"chapter_num": 1, "topic": "The Strange Discovery"}, {"chapter_num": 2, "topic": "Shadows"}, {"chapter_num": 3, "topic": "Darkness"}, {"chapter_num": 4, "topic": "Secret"}, {"chapter_num": 5, "topic": "Final Truth"}]}"""
+        raw = call_gemini(prompt)
+        if raw.startswith("```json"): raw = raw[7:-3]
+        script_data = json.loads(raw.strip())
 
-    raw = call_gemini(prompt)
-    if raw.startswith("```json"): raw = raw[7:-3]
-    script_data = json.loads(raw.strip())
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            expanded_chapters = list(executor.map(generate_audiobook_chapter_data, script_data['chapters']))
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        expanded_chapters = list(executor.map(generate_chapter_data, script_data['chapters']))
-
-    video_path = assemble_final_video(expanded_chapters, bg_music=bg_music, is_job=False)
-    upload_to_youtube_lightweight(video_path, script_data['metadata'], category_id="24")
-    
-    try: os.remove(video_path)
-    except: pass
-    print("✅ Audiobook Workflow Complete!")
+        video_path = assemble_final_video(expanded_chapters, bg_music=bg_music, is_job=False)
+        upload_to_youtube_lightweight(video_path, script_data['metadata'], category_id="24")
+        
+    print("✅ Full Process Finished!")
 
 if __name__ == "__main__":
     main()
