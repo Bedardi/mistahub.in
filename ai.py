@@ -1,6 +1,7 @@
 import os
 import sys
 import subprocess
+import base64
 
 # ==========================================
 # 1. AUTO-INSTALLER
@@ -30,8 +31,12 @@ from concurrent.futures import ThreadPoolExecutor
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 # ==========================================
-# 2. HELPER FUNCTIONS
+# 2. HELPER FUNCTIONS & DECODERS
 # ==========================================
+
+# Base64 Decoder (Completely hides URLs from chat UI formatting)
+def get_safe_url(b64_string):
+    return base64.b64decode(b64_string).decode("utf-8")
 
 def get_fake_headers():
     return {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
@@ -40,8 +45,8 @@ def download_font():
     font_path = "BoldFont.ttf"
     if not os.path.exists(font_path):
         print("📥 Downloading Font for Slides...")
-        # Direct stable link to Google's Roboto Black font
-        url = "https://github.com/google/fonts/raw/main/ofl/roboto/Roboto-Black.ttf"
+        # Decodes to the Google Font raw URL
+        url = get_safe_url("aHR0cHM6Ly9naXRodWIuY29tL2dvb2dsZS9mb250cy9yYXcvbWFpbi9vZmwvcm9ib3RvL1JvYm90by1CbGFjay50dGY=")
         try:
             res = requests.get(url, headers=get_fake_headers(), timeout=15)
             if res.status_code == 200:
@@ -53,7 +58,8 @@ def download_font():
 
 def download_background_music():
     print("🎵 Downloading Ambient BGM...")
-    url = "https://cdn.pixabay.com/download/audio/2022/03/15/audio_5116fc01c1.mp3?filename=dark-ambient-107774.mp3"
+    # Decodes to the Pixabay audio URL
+    url = get_safe_url("aHR0cHM6Ly9jZG4ucGl4YWJheS5jb20vZG93bmxvYWQvYXVkaW8vMjAyMi8wMy8xNS9hdWRpb181MTE2ZmMwMWMxLm1wMz9maWxlbmFtZT1kYXJrLWFtYmllbnQtMTA3Nzc0Lm1wMw==")
     music_path = "ambient_bg.mp3"
     try:
         res = requests.get(url, headers=get_fake_headers(), timeout=15)
@@ -64,8 +70,11 @@ def download_background_music():
 
 def call_gemini(prompt):
     models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"]
+    # Decodes to Gemini API base
+    base_api = get_safe_url("aHR0cHM6Ly9nZW5lcmF0aXZlbGFuZ3VhZ2UuZ29vZ2xlYXBpcy5jb20vdjFiZXRhL21vZGVscy8=")
+    
     for model in models:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+        url = f"{base_api}{model}:generateContent?key={GEMINI_API_KEY}"
         payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.8}}
         try:
             res = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=60)
@@ -78,7 +87,10 @@ def call_gemini(prompt):
 def generate_pollinations_image(prompt, filename):
     print(f"🎨 Generating AI Image via Pollinations: {filename}...")
     safe_prompt = urllib.parse.quote("Dark cinematic mystery horror realistic, " + prompt)
-    url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=1920&height=1080&nologo=true"
+    # Decodes to Pollinations AI base
+    base_img = get_safe_url("aHR0cHM6Ly9pbWFnZS5wb2xsaW5hdGlvbnMuYWkvcHJvbXB0Lw==")
+    url = f"{base_img}{safe_prompt}?width=1920&height=1080&nologo=true"
+    
     try:
         res = requests.get(url, timeout=30)
         if res.status_code == 200:
@@ -104,7 +116,6 @@ def get_job_vacancy_from_gemini():
         with open("posted_jobs.txt", "r") as f:
             past_jobs = f.read()
 
-    # EMOJIS REMOVED FROM PROMPT TO PREVENT CRASHES!
     prompt = f"""
     You are an expert YouTube Education Job Updates Creator. 
     Provide details for a popular Indian Government or Top Private Sector Job Vacancy (like SSC, Railway, Bank, UPSC, Defence) expected or currently active in 2026.
@@ -150,7 +161,6 @@ def generate_job_slide_image(slide_data, font_path, slide_index):
     try: text_font = ImageFont.truetype(font_path, 60)
     except: text_font = ImageFont.load_default()
 
-    # Clean text function to ensure no stray characters crash PIL
     def safe_text(txt): return txt.encode('ascii', 'ignore').decode('ascii')
 
     title_text = safe_text(slide_data.get('title', 'UPDATE'))
@@ -160,7 +170,6 @@ def generate_job_slide_image(slide_data, font_path, slide_index):
     y_pos = 350
     for point in slide_data.get('points', []):
         pt_text = safe_text(point)
-        # Using ">> " instead of "👉 " to avoid Unicode errors
         draw.text((100, y_pos), f">>  {pt_text}", font=text_font, fill=(240, 240, 240))
         y_pos += 120
 
@@ -245,12 +254,13 @@ def assemble_final_video(parts_data, bg_music=None, is_job=False):
     return final_output
 
 # ==========================================
-# 6. YOUTUBE UPLOAD (Fixed URL)
+# 6. YOUTUBE UPLOAD
 # ==========================================
 def upload_to_youtube_lightweight(video_path, metadata, category_id="24"):
     print(f"🚀 Uploading to YouTube: {metadata['title']}")
     
-    token_url = "[https://oauth2.googleapis.com/token](https://oauth2.googleapis.com/token)"
+    # Decodes to Google OAuth Token API
+    token_url = get_safe_url("aHR0cHM6Ly9vYXV0aDIuZ29vZ2xlYXBpcy5jb20vdG9rZW4=")
     
     res = requests.post(token_url, data={
         "client_id": os.environ.get("CLIENT_ID"),
@@ -275,7 +285,8 @@ def upload_to_youtube_lightweight(video_path, metadata, category_id="24"):
         "status": {"privacyStatus": "public"}
     }
 
-    upload_url = "[https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status](https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status)"
+    # Decodes to YouTube Upload API
+    upload_url = get_safe_url("aHR0cHM6Ly93d3cuZ29vZ2xlYXBpcy5jb20vdXBsb2FkL3lvdXR1YmUvdjMvdmlkZW9zP3VwbG9hZFR5cGU9cmVzdW1hYmxlJnBhcnQ9c25pcHBldCxzdGF0dXM=")
     init_res = requests.post(upload_url, headers=headers, json=body)
 
     location = init_res.headers.get("Location")
@@ -288,7 +299,8 @@ def upload_to_youtube_lightweight(video_path, metadata, category_id="24"):
         upload_res = requests.put(location, headers={"Authorization": f"Bearer {access_token}"}, data=f)
 
     if upload_res.status_code in [200, 201]:
-        print(f"🎉 SUCCESS! Video Live: [https://youtu.be/](https://youtu.be/){upload_res.json().get('id')}")
+        yt_base = get_safe_url("aHR0cHM6Ly95b3V0dS5iZS8=")
+        print(f"🎉 SUCCESS! Video Live: {yt_base}{upload_res.json().get('id')}")
     else:
         print(f"❌ Upload Failed: {upload_res.text}")
 
