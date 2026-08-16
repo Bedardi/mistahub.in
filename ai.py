@@ -26,7 +26,6 @@ import random
 import urllib.parse
 import asyncio
 import edge_tts
-from edge_tts import SubMaker
 from PIL import Image, ImageDraw, ImageFont
 from concurrent.futures import ThreadPoolExecutor
 
@@ -96,18 +95,40 @@ def generate_pollinations_image(prompt, filename):
     img.save(filename)
     return filename
 
-# LIP-SYNC CAPTIONS GENERATOR (Audio + VTT)
+# ==========================================
+# CUSTOM LIP-SYNC CAPTIONS GENERATOR 
+# (No SubMaker Dependency = 100% Crash-Free)
+# ==========================================
 async def generate_tts_with_subs(text, audio_filename, vtt_filename):
     communicate = edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+3%")
-    submaker = SubMaker()
+    subs = []
+    
     with open(audio_filename, "wb") as file:
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
                 file.write(chunk["data"])
             elif chunk["type"] == "WordBoundary":
-                submaker.create_sub((chunk["offset"], chunk["duration"]), chunk["text"])
+                # Convert 100-nanosecond units to Seconds
+                offset_sec = chunk["offset"] / 10_000_000.0
+                duration_sec = chunk["duration"] / 10_000_000.0
+                
+                # Format to VTT Timestamp (HH:MM:SS.mmm)
+                def format_vtt(sec):
+                    h = int(sec // 3600)
+                    m = int((sec % 3600) // 60)
+                    s = int(sec % 60)
+                    ms = int(round((sec - int(sec)) * 1000))
+                    return f"{h:02}:{m:02}:{s:02}.{ms:03}"
+                
+                start_time = format_vtt(offset_sec)
+                end_time = format_vtt(offset_sec + duration_sec)
+                word = chunk["text"]
+                
+                subs.append(f"{start_time} --> {end_time}\n{word}\n")
+                
     with open(vtt_filename, "w", encoding="utf-8") as file:
-        file.write(submaker.generate_subs())
+        file.write("WEBVTT\n\n")
+        file.write("\n".join(subs))
 
 # ==========================================
 # 3. GEMINI DIRECT JOB GENERATOR
@@ -201,16 +222,16 @@ def generate_audiobook_chapter_data(ch):
     return {"topic": ch['topic'], "text": narration}
 
 # ==========================================
-# 5. FFMPEG VIDEO ASSEMBLY (With Lip Sync Subs)
+# 5. FFMPEG VIDEO ASSEMBLY (With BIG Lip Sync Subs)
 # ==========================================
 def build_chapter_video(image_path, audio_path, vtt_path, output_path):
     print(f"⚡ Rendering {output_path} (Image + Audio + LipSync Captions)...")
-    # Adding Subtitles filter to FFMPEG!
+    # FontSize=45 ensures HUGE readable text. Outline=3 adds thick black border for clarity!
     cmd = [
         "ffmpeg", "-y",
         "-loop", "1", "-framerate", "1", "-i", image_path,
         "-i", audio_path,
-        "-vf", f"subtitles={vtt_path}:force_style='FontSize=26,PrimaryColour=&H00FFFF,OutlineColour=&H000000,BorderStyle=1,Outline=2,Shadow=1,MarginV=40'",
+        "-vf", f"subtitles={vtt_path}:force_style='FontSize=45,PrimaryColour=&H00FFFF,OutlineColour=&H000000,BorderStyle=1,Outline=3,Shadow=2,MarginV=60'",
         "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-shortest", output_path
     ]
@@ -225,7 +246,7 @@ def assemble_final_video(parts_data, bg_music=None, is_job=False):
         vtt_file = f"temp_sub_{idx}.vtt"
         vid_file = f"temp_part_{idx}.mp4"
         
-        # Generate Audio and VTT (Subtitles) simultaneously
+        # Generate Audio and Custom VTT simultaneously
         asyncio.run(generate_tts_with_subs(part['text'], audio_file, vtt_file))
         
         if is_job:
