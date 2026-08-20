@@ -28,7 +28,7 @@ import requests
 import edge_tts
 from PIL import Image
 
-# IMPORTANT: SET YOUR API KEYS HERE OR IN ENVIRONMENT VARIABLES
+# IMPORTANT: API KEYS FROM ENVIRONMENT VARIABLES
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_KEY_HERE")
 CLIENT_ID = os.environ.get("CLIENT_ID", "YOUR_GOOGLE_CLIENT_ID_HERE")
 CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "YOUR_GOOGLE_CLIENT_SECRET_HERE")
@@ -67,7 +67,6 @@ def generate_pollinations_image_vertical(prompt, filename):
             with open(filename, 'wb') as f: f.write(res.content)
             return filename
     except: pass
-    # Fallback to dark screen if image gen fails
     img = Image.new('RGB', (1080, 1920), color=(20, 20, 25))
     img.save(filename)
     return filename
@@ -137,7 +136,6 @@ async def generate_tts_with_subs(text, audio_filename, vtt_filename):
                 offset_sec = chunk["offset"] / 10_000_000.0
                 duration_sec = chunk["duration"] / 10_000_000.0
                 
-                # Format to VTT Timestamp (HH:MM:SS.mmm)
                 def format_vtt(sec):
                     h = int(sec // 3600)
                     m = int((sec % 3600) // 60)
@@ -222,16 +220,14 @@ def assemble_final_video(parts_data, bg_music=None):
 def upload_to_youtube(video_path, metadata):
     print(f"🚀 Uploading to YouTube...")
     
-    # Ensure Title contains #shorts
     title = metadata.get('title', 'Zindagi Ka Sach 💔')
     if '#shorts' not in title.lower():
         title = f"{title} #shorts"
-    title = title[:100] # Max length is 100
+    title = title[:100]
 
     description = metadata.get('description', '')
     tags = metadata.get('tags', ['shorts', 'quotes'])
 
-    # 1. Get Access Token
     token_url = get_safe_url("aHR0cHM6Ly9vYXV0aDIuZ29vZ2xlYXBpcy5jb20vdG9rZW4=")
     res = requests.post(token_url, data={
         "client_id": CLIENT_ID,
@@ -246,8 +242,8 @@ def upload_to_youtube(video_path, metadata):
         
     access_token = res.json()["access_token"]
     
-    # 2. Initialize Upload (Resumable Session)
-    upload_url = "[https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status](https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status)"
+    # ALL URLs SAFELY DECODED HERE TO PREVENT MARKDOWN FORMATTING ISSUES IN EDITOR
+    upload_url = get_safe_url("aHR0cHM6Ly93d3cuZ29vZ2xlYXBpcy5jb20vdXBsb2FkL3lvdXR1YmUvdjMvdmlkZW9zP3VwbG9hZFR5cGU9cmVzdW1hYmxlJnBhcnQ9c25pcHBldCxzdGF0dXM=")
     
     headers_init = {
         "Authorization": f"Bearer {access_token}",
@@ -261,10 +257,10 @@ def upload_to_youtube(video_path, metadata):
             "title": title,
             "description": description,
             "tags": tags,
-            "categoryId": "24" # 24 = Entertainment
+            "categoryId": "24"
         },
         "status": {
-            "privacyStatus": "public", # Use 'private' for testing if you want
+            "privacyStatus": "public",
             "selfDeclaredMadeForKids": False
         }
     }
@@ -281,7 +277,6 @@ def upload_to_youtube(video_path, metadata):
         print("❌ Could not get upload location URL.")
         return False
 
-    # 3. Actually Upload the Video File
     print(f"📡 Pushing video file ({os.path.getsize(video_path)} bytes)...")
     with open(video_path, "rb") as f:
         headers_upload = {
@@ -308,7 +303,7 @@ def upload_to_youtube(video_path, metadata):
 # ==========================================
 def main():
     if GEMINI_API_KEY == "YOUR_GEMINI_KEY_HERE" or CLIENT_ID == "YOUR_GOOGLE_CLIENT_ID_HERE":
-        print("⚠️ STOP: You must enter your API Keys at the top of the code before running.")
+        print("⚠️ STOP: API Keys are missing in Environment Variables.")
         return
 
     print("🚀 Starting MistaHub Shorts Automation...")
@@ -327,7 +322,6 @@ def main():
         video_path = assemble_final_video(parts_data, bg_music=bg_music)
         print(f"✅ Video generated successfully: {video_path}")
         
-        # Uncomment this line if you want to skip upload while testing
         upload_to_youtube(video_path, quotes_data['metadata'])
         
     else:
