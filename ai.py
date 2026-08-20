@@ -44,7 +44,7 @@ def download_font():
     font_path = "BoldFont.ttf"
     if not os.path.exists(font_path):
         print("📥 Downloading Font for Captions...")
-        # Using a clean sans-serif font suitable for shorts
+        # Clean sans-serif font suitable for shorts
         url = get_safe_url("aHR0cHM6Ly9naXRodWIuY29tL2dvb2dsZS9mb250cy9yYXcvbWFpbi9vZmwvcm9ib3RvL1JvYm90by1CbGFjay50dGY=")
         try:
             res = requests.get(url, headers=get_fake_headers(), timeout=15)
@@ -56,7 +56,7 @@ def download_font():
 
 def download_sad_bgm():
     print("🎵 Downloading Sad/Emotional BGM...")
-    # Using a sad cinematic piano loop
+    # Sad cinematic piano loop
     url = get_safe_url("aHR0cHM6Ly9jZG4ucGl4YWJheS5jb20vZG93bmxvYWQvYXVkaW8vMjAyMi8xMC8yNS9hdWRpb18yM2I0NjIyZjVlLm1wMz9maWxlbmFtZT1zYWQtY2luZW1hdGljLXBpYW5vLTEyMzk3MC5tcDM=")
     music_path = "sad_bg.mp3"
     try:
@@ -72,7 +72,8 @@ def call_gemini(prompt):
 
     for model in models:
         url = f"{base_api}{model}:generateContent?key={GEMINI_API_KEY}"
-        payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.9}} # High temp for creativity
+        # Temperature slightly high for creative but relatable thoughts
+        payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.8}} 
         try:
             res = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=60)
             data = res.json()
@@ -83,8 +84,8 @@ def call_gemini(prompt):
 
 def generate_pollinations_image_vertical(prompt, filename):
     print(f"🎨 Generating AI Background: {filename}...")
-    # CHANGED TO VERTICAL (1080x1920) FOR SHORTS
-    safe_prompt = urllib.parse.quote("Cinematic, moody, aesthetic, 4k, " + prompt)
+    # Vertical (1080x1920) for Shorts, with moody/cinematic vibes
+    safe_prompt = urllib.parse.quote("Cinematic, moody, aesthetic, lonely, 4k, " + prompt)
     base_img = get_safe_url("aHR0cHM6Ly9pbWFnZS5wb2xsaW5hdGlvbnMuYWkvcHJvbXB0Lw==")
     url = f"{base_img}{safe_prompt}?width=1080&height=1920&nologo=true"
 
@@ -102,7 +103,7 @@ def generate_pollinations_image_vertical(prompt, filename):
 # CUSTOM LIP-SYNC CAPTIONS GENERATOR 
 # ==========================================
 async def generate_tts_with_subs(text, audio_filename, vtt_filename):
-    # -10% rate for slower, emotional delivery
+    # -10% rate for slower, deeper, emotional delivery
     communicate = edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="-10%", pitch="-5Hz")
     subs = []
 
@@ -131,36 +132,40 @@ async def generate_tts_with_subs(text, audio_filename, vtt_filename):
         file.write("WEBVTT\n\n")
         file.write("\n".join(subs))
 
-
 # ==========================================
-# 3. GEMINI SHAYARI GENERATOR
+# 3. GEMINI VIRAL "KADWA SACH" GENERATOR
 # ==========================================
-def get_shayari_from_gemini():
-    print("🔍 Asking Gemini AI for Emotional Shayari...")
+def get_viral_quotes_from_gemini():
+    print("🔍 Asking Gemini AI for Viral 'Bitter Truth' Quotes...")
     
     prompt = """
-    You are an expert at writing heart-touching, deep, emotional Shayari in Hindi (written in Hinglish script).
-    Create 1 Short Video Script (Max 20 seconds of speaking).
+    You are a master of writing viral, deep, and bitter truths about life, fake friends, money, and modern society in Hindi (written in Hinglish script). 
+    Your goal is to write a script for a highly shareable, emotional 15-20 second YouTube Short. 
+    It MUST be relatable so people want to share it on WhatsApp statuses.
     
-    Themes to choose randomly from: Loneliness, Fake friends, Lost Love, Deep life truth, Broken heart.
+    Structure the script like this:
+    Slide 1 (The Hook): A very short, hard-hitting truth. (e.g., "Zindagi ka ek kadwa sach bataun?")
+    Slide 2 (The Core): The main emotional or deep thought about fake people, money changing relations, or loneliness.
+    
+    Themes to choose randomly from: Fake Relatives, Money vs Love, Changing faces of friends, The reality of growing up, Silent suffering.
     
     CRITICAL RULE: DO NOT USE EMOJIS in the JSON output. Keep text clean.
     
     Generate JSON exactly in this format:
     {
       "metadata": {
-        "title": "[Catchy Title] 💔 #shorts #shayari", 
-        "description": "Deep words about life... #emotional #quotes #hindishayari", 
-        "tags": ["shorts", "shayari", "emotional", "deep quotes", "hindi", "sad status"]
+        "title": "Zindagi Ka Kadwa Sach 💔 | Deep Words #shorts #quotes #reality", 
+        "description": "True words about life... #emotional #quotes #kadwasach #lifequotes", 
+        "tags": ["shorts", "quotes", "emotional", "deep quotes", "hindi", "life reality", "kadwa sach", "status"]
       },
       "slides": [
         {
-          "visual_prompt": "A lonely person walking on a dark rainy street, moody lighting",
-          "narration": "Log kehte hain waqt ke sath sab theek ho jata hai..."
+          "visual_prompt": "A person walking alone in a crowd, cinematic, dark, moody",
+          "narration": "Zindagi ka ek bahut kadwa sach bataun?"
         },
         {
-          "visual_prompt": "A broken glass, dark aesthetic background",
-          "narration": "Par sach toh ye hai, dard wahi rehta hai, bas hume sehna aa jata hai."
+          "visual_prompt": "An empty chair, dark aesthetic, moody lighting",
+          "narration": "Log sath tab tak dete hain, jab tak unka aapse matlab nikal raha hota hai."
         }
       ]
     }
@@ -174,15 +179,14 @@ def get_shayari_from_gemini():
 # 5. FFMPEG VIDEO ASSEMBLY (SHORTS FORMAT)
 # ==========================================
 def build_chapter_video(image_path, audio_path, vtt_path, output_path):
-    print(f"⚡ Rendering {output_path} (Vertical Shorts)...")
+    print(f"⚡ Rendering {output_path} (Vertical Shorts with Custom Subs)...")
     
-    # Changed MarginV to bring subtitles lower to the middle of the vertical screen
-    # Added commas in text if needed for pauses, FFmpeg handles VTT words
+    # Subtitles formatted for vertical video: Centered, good size, with outline for readability
     cmd = [
         "ffmpeg", "-y",
         "-loop", "1", "-framerate", "1", "-i", image_path,
         "-i", audio_path,
-        "-vf", f"scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,subtitles={vtt_path}:force_style='FontSize=24,PrimaryColour=&H00FFFF,OutlineColour=&H000000,BorderStyle=1,Outline=2,Shadow=2,Alignment=2,MarginV=150'",
+        "-vf", f"scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,subtitles={vtt_path}:force_style='FontSize=26,PrimaryColour=&H00FFFF,OutlineColour=&H000000,BorderStyle=1,Outline=2,Shadow=2,Alignment=2,MarginV=150'",
         "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-shortest", output_path
     ]
@@ -217,7 +221,7 @@ def assemble_final_video(parts_data, bg_music=None):
     final_output = "final_ready_short.mp4"
     if bg_music and os.path.exists(bg_music):
         print("🎧 Adding Sad Background Music...")
-        # Volume set to 0.15 for BGM so voice is clearly heard
+        # BGM volume reduced to 0.15 so voice is clearly heard
         cmd = [
             "ffmpeg", "-y", "-i", merged_vid, "-stream_loop", "-1", "-i", bg_music,
             "-filter_complex", "[1:a]volume=0.15[bgm];[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[a]",
@@ -289,16 +293,16 @@ def main():
         print("❌ Missing API Keys in Environment Variables!")
         return
 
-    print("🚀 Starting Shayari Shorts Bot...")
-    shayari_data = get_shayari_from_gemini()
+    print("🚀 Starting Viral Truth Shorts Bot...")
+    quotes_data = get_viral_quotes_from_gemini()
 
-    if shayari_data:
-        print("✅ Gemini successfully generated Shayari! Initiating Video...")
+    if quotes_data:
+        print("✅ Gemini successfully generated Viral Content! Initiating Video...")
         font_path = download_font()
         bg_music = download_sad_bgm()
         
         parts_data = []
-        for slide in shayari_data['slides']:
+        for slide in quotes_data['slides']:
             parts_data.append({
                 "text": slide['narration'], 
                 "slide_data": slide, 
@@ -307,9 +311,9 @@ def main():
 
         video_path = assemble_final_video(parts_data, bg_music=bg_music)
         
-        # Category 24 is Entertainment, which fits Shayari well
-        upload_to_youtube_lightweight(video_path, shayari_data['metadata'], category_id="24")
-        print("✅ Shayari Shorts Workflow Complete!")
+        # Category 24 is Entertainment, which fits relatable emotional content well
+        upload_to_youtube_lightweight(video_path, quotes_data['metadata'], category_id="24")
+        print("✅ Viral Truth Shorts Workflow Complete!")
 
     else:
         print("⚠️ Gemini couldn't generate data.")
